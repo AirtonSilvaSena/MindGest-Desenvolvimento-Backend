@@ -23,6 +23,7 @@ O backend fornece todas as APIs necessárias, garantindo autenticação, valida�
 - **bcryptjs** - Criptografia de senhas.  
 - **jsonwebtoken (JWT)** - Autenticação de usuários.  
 - **Swagger** - Documentação de endpoints da API.
+- **Url:** http://localhost:3000/docs/
 
 ## Estrutura do Projeto
 
