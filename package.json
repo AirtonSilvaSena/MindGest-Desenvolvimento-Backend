@@ -2,10 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Projeto MindGest Backend",
-  "main": "src/app.js",
+  "main": "src/servidor.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "node src/servido.js",
+    "dev": "nodemon src/servidor.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
