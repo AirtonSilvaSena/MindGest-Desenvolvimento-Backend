@@ -2,12 +2,14 @@
 const express = require('express');
 const setupSwagger = require('./config/swagger');
 
-
 // Importa dotenv para carregar variáveis de ambiente do arquivo .env
 const dotenv = require('dotenv');
 
 // Importa as rotas de usuários
 const userRoutes = require('./routes/usuarioRoutes');
+
+// Importa a rota padrão e a de status da api
+const statusRoutes = require('./routes/statusRoutes');
 
 // Carrega as variáveis de ambiente do arquivo .env
 dotenv.config();
@@ -22,11 +24,15 @@ app.use(express.json());
 // Rotas da aplicação
 // Todas as rotas de usuário começam com /usuarios
 app.use('/api/v1/usuarios', userRoutes);
+app.use('/', statusRoutes);
 
 // Healthcheck simples para verificar se o servidor está online
 // GET /health retorna um JSON com status 'ok'
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 setupSwagger(app);
+
+
+
 
 // Middleware para tratar rotas não encontradas (404)
 // Deve ficar no final, depois de todas as rotas definidas

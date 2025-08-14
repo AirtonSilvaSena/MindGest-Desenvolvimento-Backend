@@ -126,5 +126,36 @@ module.exports = {
       console.error(error);
       res.status(500).json({ message: 'Erro ao autenticar usuário' });
     }
+  },
+
+  async validateToken(req, res) {
+    console.log("-> Inciou validadeToken");
+    try {
+      
+      console.log("-> Req: ", req)
+      console.log("-> Req.user: ", req.user)
+      console.log("-> req.user.id: ", req.user.id)
+
+      const userId = req.user.id; // pega o id do token
+      console.log("Validate Id: ", userId)
+      // Busca o usuário completo no banco
+      const user = await UserModel.getById(userId); // ou o método que você usa no seu model
+      console.log("Dados do Usuário: ", user)
+      if (!user) {
+        return res.status(404).json({ message: 'Usuário não encontrado' });
+      }
+
+      const infoUser = mapPublic(user);
+      // Retorna uma resposta em formato JSON
+      res.json({
+        valid: true,         // Indica que o token foi validado com sucesso
+        infoUser   // Dados do usuário
+        // Esse 'req.user' vem do payload do JWT decodificado
+      });
+
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Erro interno' });
+    }
   }
 };

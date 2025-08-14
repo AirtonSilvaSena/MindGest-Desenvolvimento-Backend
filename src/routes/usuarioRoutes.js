@@ -46,6 +46,38 @@ const router = Router();
  */
 router.post('/login', UserController.login);
 
+/**
+ * @swagger
+ * /validarToken:
+ *   get:
+ *     summary: Valida o token JWT e retorna os dados do usuário
+ *     description: >
+ *       Retorna `valid: true` e as informações do usuário caso o token seja válido.
+ *     tags:
+ *       - Autenticação
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token válido, retorna informações do usuário.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 valid:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   type: object
+ *                   description: Dados do usuário autenticado
+ *       401:
+ *         description: Token não fornecido
+ *       403:
+ *         description: Token inválido ou expirado
+ */
+router.get('/validarToken', autenticar, UserController.validateToken);
+
 // Criação de usuário (pública)
 /**
  * @swagger
@@ -189,5 +221,7 @@ router.put('/:id', autenticar, updateUserValidation, handleValidation, UserContr
  *         description: Usuário não encontrado
  */
 router.delete('/:id', autenticar, idParamValidation, handleValidation, UserController.destroy);
+
+
 
 module.exports = router;
