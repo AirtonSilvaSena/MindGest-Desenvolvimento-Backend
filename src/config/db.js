@@ -14,9 +14,9 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,       // Usuário do banco definido no .env
   password: process.env.DB_PASS,   // Senha do banco definida no .env
   database: process.env.DB_NAME,   // Nome do banco que será usado
-  ssl: {                           // Configuração de conexão segura (SSL)
-    ca: fs.readFileSync(__dirname + '/ca.pem') // Lê o certificado baixado do painel do Aiven
-  },
+ // ssl: {                           // Configuração de conexão segura (SSL)
+ //   ca: fs.readFileSync(__dirname + '/ca.pem') // Lê o certificado baixado do painel do Aiven
+//  },
   waitForConnections: true,        // Aguarda se todas as conexões estiverem ocupadas
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10), // Máximo de conexões simultâneas no pool
   queueLimit: 0,                   // Sem limite de espera na fila de conexões
