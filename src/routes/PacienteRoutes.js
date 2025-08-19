@@ -51,7 +51,7 @@ const autenticar = require('../middlewares/autenticar'); // Middleware de autent
 
 /**
  * @swagger
- * /pacientes:
+ * /api/v1/pacientes:
  *   get:
  *     summary: Lista todos os pacientes do usuário logado
  *     tags: [Pacientes]
@@ -118,7 +118,7 @@ router.get("/", autenticar, pacienteController.listar);
 
 /**
  * @swagger
- * /pacientes/pesquisar:
+ * /api/v1/pacientes/pesquisar:
  *   get:
  *     summary: Pesquisa pacientes do usuário logado por nome, email ou telefone
  *     tags: [Pacientes]
@@ -160,7 +160,7 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
 
 /**
  * @swagger
- * /pacientes/{id}:
+ * /api/v1/pacientes/{id}:
  *   get:
  *     summary: Busca um paciente pelo ID (somente do usuário logado)
  *     tags: [Pacientes]
@@ -262,7 +262,7 @@ router.get("/:id", autenticar, pacienteController.buscarPorId);
 
 /**
  * @swagger
- * /pacientes:
+ * /api/v1/pacientes:
  *   post:
  *     summary: Cria um novo paciente vinculado ao usuário logado
  *     tags: [Pacientes]
@@ -308,7 +308,7 @@ router.post("/", autenticar, validatePaciente, pacienteController.criar);
 
 /**
  * @swagger
- * /pacientes/{id}:
+ * /api/v1/pacientes/{id}:
  *   put:
  *     summary: Atualiza um paciente existente do usuário logado
  *     tags: [Pacientes]
@@ -361,7 +361,7 @@ router.put("/:id", autenticar, validatePaciente, pacienteController.atualizar);
 
 /**
  * @swagger
- * /pacientes/{id}:
+ * /api/v1/pacientes/{id}:
  *   delete:
  *     summary: Exclui um paciente pelo ID (somente do usuário logado)
  *     tags: [Pacientes]

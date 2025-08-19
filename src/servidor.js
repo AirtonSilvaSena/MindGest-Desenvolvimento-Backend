@@ -6,10 +6,10 @@ const setupSwagger = require('./config/swagger');
 const dotenv = require('dotenv');
 
 // Importa as rotas de usuários
-const userRoutes = require('./routes/UsuarioRoutes');
+const userRoutes = require('./routes/usuarioRoutes');
 
 // Importa a rota padrão e a de status da api
-const statusRoutes = require('./routes/StatusRoutes');
+const statusRoutes = require('./routes/statusRoutes');
 
 // Importa as rotas do paciente
 const pacienteRoutes = require("./routes/PacienteRoutes");

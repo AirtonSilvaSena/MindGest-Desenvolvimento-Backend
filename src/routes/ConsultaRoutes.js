@@ -55,7 +55,7 @@ const autenticar = require('../middlewares/autenticar');
 
 /**
  * @swagger
- * /consultas:
+ * /api/v1/consultas:
  *   post:
  *     summary: Criar nova consulta
  *     tags: [Consultas]
@@ -91,7 +91,7 @@ router.post('/', autenticar, consultasController.create);
 
 /**
  * @swagger
- * /consultas:
+ * /api/v1/consultas:
  *   get:
  *     summary: Listar consultas do profissional logado
  *     tags: [Consultas]
@@ -112,7 +112,7 @@ router.get('/', autenticar, consultasController.list);
 
 /**
  * @swagger
- * /consultas/{id}:
+ * /api/v1/consultas/{id}:
  *   get:
  *     summary: Buscar consulta por ID
  *     tags: [Consultas]
@@ -138,7 +138,7 @@ router.get('/:id', autenticar, consultasController.getById);
 
 /**
  * @swagger
- * /consultas/{id}:
+ * /api/v1/consultas/{id}:
  *   put:
  *     summary: Atualizar consulta
  *     tags: [Consultas]
@@ -164,7 +164,7 @@ router.put('/:id', autenticar, consultasController.update);
 
 /**
  * @swagger
- * /consultas/{id}/status:
+ * /api/v1/consultas/{id}/status:
  *   patch:
  *     summary: Atualizar status da consulta
  *     tags: [Consultas]
@@ -197,7 +197,7 @@ router.patch('/:id/status', autenticar, consultasController.updateStatus);
 
 /**
  * @swagger
- * /consultas/{id}:
+ * /api/v1/consultas/{id}:
  *   delete:
  *     summary: Excluir consulta
  *     tags: [Consultas]
