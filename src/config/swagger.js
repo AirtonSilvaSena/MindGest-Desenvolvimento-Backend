@@ -9,6 +9,15 @@ const options = {
       version: '1.0.0',
       description: 'Documentação da API do MindGest',
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      }
+    },
     servers: [
       {
         url: 'http://localhost:3000', // endereço do seu backend

@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const consultasController = require('../controllers/ConsultaController');
 const autenticar = require('../middlewares/autenticar');
+const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
+const { createConsultaValidation, updateConsultaValidation, statusConsultaValidation, idParamValidation } = require('../middlewares/consultaValidation');
+const handleValidation = require('../middlewares/handleValidation');
 
 /**
  * @swagger
@@ -77,6 +80,15 @@ const autenticar = require('../middlewares/autenticar');
  *               email: { type: string }
  *               valor_sessao: { type: number }
  *               observacoes: { type: string }
+ *           examples:
+ *             default:
+ *               summary: Exemplo de criação
+ *               value:
+ *                 paciente_id: 10
+ *                 data_consulta: '2025-11-11'
+ *                 hora_inicio: '14:00:00'
+ *                 duracao_minutos: 30
+ *                 telefone: '21999998888'
  *     responses:
  *       201:
  *         description: Consulta criada
@@ -84,10 +96,26 @@ const autenticar = require('../middlewares/autenticar');
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Consulta'
- *       400: { description: Erro de validação }
- *       500: { description: Erro interno }
+ *       400:
+ *         description: Conflito de horário / regra de negócio
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       422:
+ *         description: Erro de validação
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.post('/', autenticar, consultasController.create);
+router.post('/', autenticar, enforcePasswordReset(), createConsultaValidation, handleValidation, consultasController.create);
 
 /**
  * @swagger
@@ -106,9 +134,14 @@ router.post('/', autenticar, consultasController.create);
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Consulta'
- *       500: { description: Erro interno }
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.get('/', autenticar, consultasController.list);
+router.get('/', autenticar, enforcePasswordReset(), consultasController.list);
 
 /**
  * @swagger
@@ -131,10 +164,20 @@ router.get('/', autenticar, consultasController.list);
  *             schema:
  *               $ref: '#/components/schemas/Consulta'
  *       403: { description: Acesso negado }
- *       404: { description: Consulta não encontrada }
- *       500: { description: Erro interno }
+ *       404:
+ *         description: Consulta não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.get('/:id', autenticar, consultasController.getById);
+router.get('/:id', autenticar, enforcePasswordReset(), idParamValidation, handleValidation, consultasController.getById);
 
 /**
  * @swagger
@@ -156,11 +199,32 @@ router.get('/:id', autenticar, consultasController.getById);
  *           schema:
  *             $ref: '#/components/schemas/Consulta'
  *     responses:
- *       200: { description: Consulta atualizada }
- *       404: { description: Consulta não encontrada ou sem permissão }
- *       500: { description: Erro interno }
+ *       200:
+ *         description: Consulta atualizada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Consulta'
+ *       404:
+ *         description: Consulta não encontrada ou sem permissão
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       422:
+ *         description: Erro de validação
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.put('/:id', autenticar, consultasController.update);
+router.put('/:id', autenticar, updateConsultaValidation, handleValidation, consultasController.update);
 
 /**
  * @swagger
@@ -186,14 +250,40 @@ router.put('/:id', autenticar, consultasController.update);
  *               status:
  *                 type: string
  *                 enum: [AGENDADA, REALIZADA, CANCELADA]
+ *           examples:
+ *             exemplo:
+ *               summary: Atualiza para REALIZADA
+ *               value:
+ *                 status: REALIZADA
  *     responses:
- *       200: { description: Status atualizado }
- *       400: { description: Status inválido }
- *       403: { description: Acesso negado }
- *       404: { description: Consulta não encontrada }
- *       500: { description: Erro interno }
+ *       200:
+ *         description: Status atualizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Consulta'
+ *       400:
+ *         description: Status inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       403:
+ *         description: Acesso negado
+ *       404:
+ *         description: Consulta não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.patch('/:id/status', autenticar, consultasController.updateStatus);
+router.patch('/:id/status', autenticar, statusConsultaValidation, handleValidation, consultasController.updateStatus);
 
 /**
  * @swagger
@@ -209,10 +299,27 @@ router.patch('/:id/status', autenticar, consultasController.updateStatus);
  *         required: true
  *         schema: { type: integer }
  *     responses:
- *       200: { description: Consulta removida com sucesso }
- *       404: { description: Consulta não encontrada ou sem permissão }
- *       500: { description: Erro interno }
+ *       200:
+ *         description: Consulta removida com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: 'Consulta removida com sucesso.' }
+ *       404:
+ *         description: Consulta não encontrado ou sem permissão
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro interno
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  */
-router.delete('/:id', autenticar, consultasController.delete);
+router.delete('/:id', autenticar, idParamValidation, handleValidation, consultasController.delete);
 
 module.exports = router;

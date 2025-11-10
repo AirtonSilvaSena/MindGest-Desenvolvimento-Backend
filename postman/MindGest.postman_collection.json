@@ -1,0 +1,254 @@
+{
+  "info": {
+    "name": "MindGest API",
+    "_postman_id": "b1b6a8a1-8f2d-4b3f-9f5a-collection",
+    "description": "Coleção Postman para testar a API MindGest.\n\nInstruções gerais:\n- Configure a variável `baseUrl` (default: http://localhost:3000).\n- Obtenha o token via Login e ele será salvo automaticamente na variável `token`.\n- Endpoints protegidos exigem header `Authorization: Bearer {{token}}`.\n- Para o primeiro uso, crie o admin via `Bootstrap Admin`.\n- Após criação de usuários PF/PJ, o sistema envia senha temporária por e-mail.\n- Admin pode resetar senha de qualquer usuário (gera nova temporária).\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "usuarioId", "value": "" },
+    { "key": "pacienteId", "value": "" },
+    { "key": "consultaId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Status",
+      "item": [
+        {
+          "name": "Health",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "response": []
+        },
+        {
+          "name": "Metrics",
+          "request": { "method": "GET", "url": "{{baseUrl}}/metrics" },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Autenticação",
+      "item": [
+        {
+          "name": "Bootstrap Admin (primeiro admin)",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/usuarios/bootstrap-admin",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@admin.com\",\n  \"senha\": \"admin\",\n  \"nome\": \"Super Admin\"\n}"
+            },
+            "description": "Cria o primeiro administrador do sistema. Só funciona quando não há admin cadastrado."
+          }
+        },
+        {
+          "name": "Login (gera token)",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/usuarios/login",
+            "body": {"mode":"raw","raw":"{\n  \"email\": \"admin@admin.com\",\n  \"senha\": \"Admin@12345\"\n}"},
+            "description": "Realiza login e retorna { token, mustResetPassword, tipo }. O test salva o token em {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login 200', function(){ pm.response.to.have.status(200); });",
+                  "var data = pm.response.json();",
+                  "pm.expect(data).to.have.property('token');",
+                  "pm.collectionVariables.set('token', data.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validar Token",
+          "request": {
+            "method": "GET",
+            "header": [{"key":"Authorization","value":"Bearer {{token}}"}],
+            "url": "{{baseUrl}}/api/v1/usuarios/validarToken",
+            "description": "Valida o token atual e retorna dados do usuário."
+          }
+        },
+        {
+          "name": "Trocar senha (primeiro acesso)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/usuarios/me/senha",
+            "body": {"mode":"raw","raw":"{\n  \"senha_atual\": \"admin\",\n  \"nova_senha\": \"Admin@12345\"\n}"},
+            "description": "Troca a senha do usuário autenticado. Use quando mustResetPassword=true."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuários (Admin)",
+      "item": [
+        {
+          "name": "Criar usuário PF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/usuarios",
+            "body": {"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PF\",\n  \"nome\": \"Usuário PF\",\n  \"cpf\": \"11144477735\",\n  \"email\": \"pf@example.com\"\n}"},
+            "description": "Cria um usuário do tipo profissional (Pessoa Física). O sistema gera senha temporária e envia por e-mail."
+          },
+          "event": [
+            {"listen":"test","script":{"exec":["pm.test('Criado 201', ()=> pm.response.to.have.status(201));","pm.collectionVariables.set('usuarioId', pm.response.json().id);"]}}
+          ]
+        },
+        {
+          "name": "Criar usuário PJ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/usuarios",
+            "body": {"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PJ\",\n  \"empresa_nome\": \"Empresa Exemplo\",\n  \"cnpj\": \"11222333000181\",\n  \"email\": \"pj@example.com\"\n}"},
+            "description": "Cria um usuário do tipo profissional (Pessoa Jurídica)."
+          }
+        },
+        {
+          "name": "Listar usuários",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/usuarios"}
+        },
+        {
+          "name": "Buscar usuário por ID",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/usuarios/{{usuarioId}}"}
+        },
+        {
+          "name": "Atualizar usuário",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/usuarios/{{usuarioId}}",
+            "body": {"mode":"raw","raw":"{\n  \"nome\": \"Novo Nome\"\n}"}
+          }
+        },
+        {
+          "name": "Resetar senha do usuário (admin)",
+          "request": {"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/usuarios/{{usuarioId}}/reset-password"},
+          "description": "Gera uma senha temporária para o usuário alvo, força troca no primeiro acesso e envia e-mail. A resposta contém tempPassword (para comunicação ao usuário)."
+        },
+        {
+          "name": "Remover usuário",
+          "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/usuarios/{{usuarioId}}"}
+        }
+      ]
+    },
+    {
+      "name": "Pacientes",
+      "item": [
+        {
+          "name": "Listar pacientes do profissional",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/pacientes"}
+        },
+        {
+          "name": "Pesquisar pacientes (query)",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/pacientes/pesquisar?nome=&email=&telefone="}
+        },
+        {
+          "name": "Criar paciente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/pacientes",
+            "body": {"mode":"raw","raw":"{\n  \"nome\": \"Paciente A\",\n  \"email\": \"paciente@example.com\",\n  \"telefone\": \"21999999999\",\n  \"data_nascimento\": \"1990-05-20\"\n}"}
+          },
+          "event": [
+            {"listen":"test","script":{"exec":["pm.test('Criado 201', ()=> pm.response.to.have.status(201));","pm.collectionVariables.set('pacienteId', pm.response.json().id);"]}}
+          ]
+        },
+        {
+          "name": "Buscar paciente por ID",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/pacientes/{{pacienteId}}"}
+        },
+        {
+          "name": "Atualizar paciente",
+          "request": {"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/pacientes/{{pacienteId}}","body":{"mode":"raw","raw":"{\n  \"telefone\": \"21988887777\"\n}"}}
+        },
+        {
+          "name": "Excluir paciente",
+          "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/pacientes/{{pacienteId}}"}
+        }
+      ]
+    },
+    {
+      "name": "Consultas",
+      "item": [
+        {
+          "name": "Criar consulta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/consultas",
+            "body": {"mode":"raw","raw":"{\n  \"paciente_id\": {{pacienteId}},\n  \"data_consulta\": \"2025-11-11\",\n  \"hora_inicio\": \"14:00:00\",\n  \"duracao_minutos\": 30,\n  \"telefone\": \"21999999999\"\n}"},
+            "description": "Cria consulta para o profissional autenticado."
+          },
+          "event": [
+            {"listen":"test","script":{"exec":["pm.test('Criado 201', ()=> pm.response.to.have.status(201));","pm.collectionVariables.set('consultaId', pm.response.json().id);"]}}
+          ]
+        },
+        {
+          "name": "Listar consultas",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/consultas"}
+        },
+        {
+          "name": "Buscar consulta por ID",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/consultas/{{consultaId}}"}
+        },
+        {
+          "name": "Atualizar consulta",
+          "request": {"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/consultas/{{consultaId}}","body":{"mode":"raw","raw":"{\n  \"observacoes\": \"Trazer exames.\"\n}"}}
+        },
+        {
+          "name": "Atualizar status da consulta",
+          "request": {"method":"PATCH","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/consultas/{{consultaId}}/status","body":{"mode":"raw","raw":"{\n  \"status\": \"REALIZADA\"\n}"}}
+        },
+        {
+          "name": "Excluir consulta",
+          "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/consultas/{{consultaId}}"}
+        }
+      ]
+    },
+    {
+      "name": "Auditoria (Admin)",
+      "item": [
+        {
+          "name": "Listar auditoria",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/auditoria?pageSize=20"}
+        },
+        {
+          "name": "Buscar auditoria por ID",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/auditoria/1"}
+        }
+      ]
+    }
+  ]
+}
+

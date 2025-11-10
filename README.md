@@ -1,39 +1,39 @@
-# MindGest - Backend
+# MindGest Backend
 
-Backend completo do sistema MindGest, responsável por toda a lógica, armazenamento e APIs do sistema, preparado para suportar todas as funcionalidades que serão implementadas no frontend.
+API Node.js/Express com MySQL, JWT, documentação Swagger, logging estruturado, auditoria e métricas básicas.
 
-## Sobre o Projeto
+## Requisitos
+- Node.js 16+
+- MySQL/MariaDB
 
-O MindGest é um sistema pensado para profissionais da saúde mental e bem-estar, permitindo gerenciar agendas, pacientes, histórico de consultas e automações de atendimento de forma centralizada e eficiente.  
-O backend fornece todas as APIs necessárias, garantindo autenticação, validação, segurança e integração com o banco de dados, além de servir como base para futuras funcionalidades do sistema.
+## Configuração
+1. Copie `.env.example` para `.env` e ajuste as variáveis.
+2. Importe o schema SQL: `Banco de Dados/bdSql.sql` no seu banco (`mindgest`).
+3. Instale dependências: `npm install` (o projeto usa apenas dependências já listadas).
 
-## Funcionalidades Principais
+## Executar
+- Dev: `npm run dev`
+- Prod: `npm start`
 
-- **APIs completas:** Endpoints preparados para suportar todas as funcionalidades do sistema.  
-- **Segurança:** Autenticação via JWT e proteção de endpoints.  
-- **Validação e regras de negócio:** Garantia de integridade e consistência dos dados.  
-- **Integração com Banco de Dados:** Estrutura preparada para armazenar informações de agendas, pacientes, consultas e demais dados do sistema.  
-- **Documentação via Swagger:** Endpoints documentados para fácil consumo pelo frontend.
+## Principais Endpoints
+- Health: `GET /health`
+- Docs Swagger: `GET /docs`
+- Métricas: `GET /metrics`
+- Usuários: `POST /api/v1/usuarios`, `POST /api/v1/usuarios/login`, etc.
+- Pacientes: `GET/POST/PUT/DELETE /api/v1/pacientes`
+- Consultas: `GET/POST/PUT/PATCH/DELETE /api/v1/consultas`
+- Auditoria (admin): `GET /api/v1/auditoria`, `GET /api/v1/auditoria/:id`
 
-## Tecnologias Utilizadas
+## Logging
+- Logs em `./logs`: `app.log`, `error.log`, `audit.log` (JSONL)
+- Cada request recebe `X-Request-Id` para rastreabilidade.
 
-- **Node.js** - Ambiente de execução do JavaScript no servidor.  
-- **Express.js** - Framework para criação da API e gerenciamento de rotas.  
-- **MySQL / PostgreSQL** - Banco de dados relacional para persistência dos dados.  
-- **bcryptjs** - Criptografia de senhas.  
-- **jsonwebtoken (JWT)** - Autenticação de usuários.  
-- **Swagger** - Documentação de endpoints da API.
-- **Url:** http://localhost:3000/docs/
+## Auditoria
+Tabela `auditoria` registra ações de CREATE/UPDATE/DELETE/LOGIN em recursos.
+Filtros por `recurso`, `acao`, `usuario_id`, `entidade_id` e datas.
 
-## Estrutura do Projeto
-
-```text
-/src
- ├─ controllers/     # Lógica dos endpoints
- ├─ models/          # Modelos e consultas ao banco de dados
- ├─ routes/          # Rotas da API
- ├─ middlewares/     # Validações e autenticação
- ├─ config/          # Configurações gerais e do banco
- └─ app.js           # Inicialização do servidor
-
+## Segurança
+- Headers básicos via middleware
+- Rate limit simples no login
+- CORS configurável via `CORS_ORIGINS`
 

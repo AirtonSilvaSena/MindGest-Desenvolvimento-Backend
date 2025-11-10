@@ -32,7 +32,7 @@ router.get('/', StatusController.rotaPadrao);
 
 /**
  * @swagger
- * /status:
+ * /statusApi:
  *   get:
  *     summary: Retorna o status e tempo de atividade da API
  *     description: Informa o status da API, uptime (tempo que o processo Node está rodando) e timestamp atual.

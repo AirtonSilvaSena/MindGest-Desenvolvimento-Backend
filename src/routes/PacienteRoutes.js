@@ -1,8 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pacienteController = require("../controllers/PacienteController");
-const validatePaciente = require("../middlewares/pacienteValidation");
+const { createPacienteValidation, updatePacienteValidation, idParamValidation, searchPacienteValidation } = require("../middlewares/pacienteValidation");
+const handleValidation = require('../middlewares/handleValidation');
 const autenticar = require('../middlewares/autenticar'); // Middleware de autenticação
+const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
 
 /**
  * @swagger
@@ -68,6 +70,18 @@ const autenticar = require('../middlewares/autenticar'); // Middleware de autent
  *                 $ref: '#/components/schemas/Paciente'
  *       401:
  *         description: Token não fornecido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       403:
+ *         description: Token inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       401:
+ *         description: Token não fornecido
  *       403:
  *         description: Token inválido
  *       500:
@@ -98,6 +112,14 @@ const autenticar = require('../middlewares/autenticar'); // Middleware de autent
  *               - nome
  *               - email
  *               - telefone
+ *           examples:
+ *             default:
+ *               summary: Exemplo de criação
+ *               value:
+ *                 nome: Maria da Silva
+ *                 email: maria@email.com
+ *                 telefone: '21999999999'
+ *                 data_nascimento: '1990-05-20'
  *     responses:
  *       201:
  *         description: Paciente criado com sucesso
@@ -105,8 +127,12 @@ const autenticar = require('../middlewares/autenticar'); // Middleware de autent
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Paciente'
- *       400:
- *         description: Dados inválidos
+ *       422:
+ *         description: Erro de validação
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  *       401:
  *         description: Token não fornecido
  *       403:
@@ -114,7 +140,7 @@ const autenticar = require('../middlewares/autenticar'); // Middleware de autent
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/", autenticar, pacienteController.listar);
+router.get("/", autenticar, enforcePasswordReset(), pacienteController.listar);
 
 /**
  * @swagger
@@ -149,6 +175,12 @@ router.get("/", autenticar, pacienteController.listar);
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Paciente'
+ *       422:
+ *         description: Erro de validação
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  *       401:
  *         description: Token não fornecido
  *       403:
@@ -156,7 +188,7 @@ router.get("/", autenticar, pacienteController.listar);
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/pesquisar", autenticar, pacienteController.pesquisar);
+router.get("/pesquisar", autenticar, enforcePasswordReset(), searchPacienteValidation, handleValidation, pacienteController.pesquisar);
 
 /**
  * @swagger
@@ -181,6 +213,10 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
  *               $ref: '#/components/schemas/Paciente'
  *       404:
  *         description: Paciente não encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  *       401:
  *         description: Token não fornecido
  *       403:
@@ -217,6 +253,12 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
  *                 format: date
  *               ativo:
  *                 type: boolean
+ *           examples:
+ *             update:
+ *               summary: Exemplo de atualização
+ *               value:
+ *                 nome: Maria A.
+ *                 ativo: true
  *     responses:
  *       200:
  *         description: Paciente atualizado com sucesso
@@ -224,10 +266,18 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Paciente'
- *       400:
- *         description: Dados inválidos
  *       404:
  *         description: Paciente não encontrado ou não pertence ao usuário
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       422:
+ *         description: Erro de validação
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  *       401:
  *         description: Token não fornecido
  *       403:
@@ -249,8 +299,20 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
  *     responses:
  *       200:
  *         description: Paciente excluído com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Paciente excluído com sucesso
  *       404:
  *         description: Paciente não encontrado ou não pertence ao usuário
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
  *       401:
  *         description: Token não fornecido
  *       403:
@@ -258,7 +320,7 @@ router.get("/pesquisar", autenticar, pacienteController.pesquisar);
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/:id", autenticar, pacienteController.buscarPorId);
+router.get("/:id", autenticar, idParamValidation, handleValidation, pacienteController.buscarPorId);
 
 /**
  * @swagger
@@ -304,7 +366,7 @@ router.get("/:id", autenticar, pacienteController.buscarPorId);
  *       500:
  *         description: Erro interno do servidor
  */
-router.post("/", autenticar, validatePaciente, pacienteController.criar);
+router.post("/", autenticar, createPacienteValidation, handleValidation, pacienteController.criar);
 
 /**
  * @swagger
@@ -357,7 +419,7 @@ router.post("/", autenticar, validatePaciente, pacienteController.criar);
  *       500:
  *         description: Erro interno do servidor
  */
-router.put("/:id", autenticar, validatePaciente, pacienteController.atualizar);
+router.put("/:id", autenticar, updatePacienteValidation, handleValidation, pacienteController.atualizar);
 
 /**
  * @swagger
@@ -386,6 +448,6 @@ router.put("/:id", autenticar, validatePaciente, pacienteController.atualizar);
  *       500:
  *         description: Erro interno do servidor
  */
-router.delete("/:id", autenticar, pacienteController.excluir);
+router.delete("/:id", autenticar, idParamValidation, handleValidation, pacienteController.excluir);
 
 module.exports = router;

@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `telefone` varchar(20) DEFAULT NULL,
   `criado_em` timestamp NOT NULL DEFAULT current_timestamp(),
   `atualizado_em` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `tipo` varchar(20) NOT NULL DEFAULT 'cliente',
+  `tipo` varchar(20) NOT NULL DEFAULT 'profissional',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -81,3 +81,58 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 /*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
+
+-- Tabela de auditoria
+CREATE TABLE IF NOT EXISTS `auditoria` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `recurso` varchar(50) NOT NULL,
+  `acao` varchar(20) NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `entidade_id` int(11) DEFAULT NULL,
+  `antes` json DEFAULT NULL,
+  `depois` json DEFAULT NULL,
+  `ip` varchar(64) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `criado_em` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_auditoria_recurso` (`recurso`),
+  KEY `idx_auditoria_usuario` (`usuario_id`),
+  KEY `idx_auditoria_entidade` (`entidade_id`),
+  KEY `idx_auditoria_criado` (`criado_em`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Migração: Adequações PF/PJ, reset de senha e índices
+-- OBS: Execute os ALTERs apenas uma vez em bases existentes
+-- --------------------------------------------------------
+-- Pessoa tipo (PF/PJ) e identificadores
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `pessoa_tipo` ENUM('PF','PJ') NOT NULL AFTER `tipo`;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `cpf` VARCHAR(14) NULL AFTER `pessoa_tipo`;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `cnpj` VARCHAR(18) NULL AFTER `cpf`;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `empresa_nome` VARCHAR(150) NULL AFTER `cnpj`;
+
+-- Força troca de senha no primeiro acesso e flag de ativo
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `must_reset_password` TINYINT(1) NOT NULL DEFAULT 0 AFTER `telefone`;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `ativo` TINYINT(1) NOT NULL DEFAULT 1 AFTER `atualizado_em`;
+
+-- Constraints de unicidade
+ALTER TABLE `usuarios`
+  ADD UNIQUE KEY `uniq_usuarios_cpf` (`cpf`);
+
+ALTER TABLE `usuarios`
+  ADD UNIQUE KEY `uniq_usuarios_cnpj` (`cnpj`);
+
+-- Índices auxiliares
+ALTER TABLE `usuarios`
+  ADD INDEX `idx_usuarios_tipo` (`tipo`),
+  ADD INDEX `idx_usuarios_pessoa_tipo` (`pessoa_tipo`);

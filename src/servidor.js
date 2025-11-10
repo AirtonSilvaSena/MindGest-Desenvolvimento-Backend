@@ -1,61 +1,77 @@
 // Importa o framework Express para criar o servidor
 const express = require('express');
-const setupSwagger = require('./config/swagger');
-
-// Importa dotenv para carregar variáveis de ambiente do arquivo .env
-const dotenv = require('dotenv');
-
-// Importa o cors
 const cors = require('cors');
+const setupSwagger = require('./config/swagger');
+const config = require('./config');
+const logger = require('./utils/logger');
 
-// Importa as rotas de usuários
+// Middlewares
+const requestId = require('./middlewares/requestId');
+const securityHeaders = require('./middlewares/securityHeaders');
+const errorHandler = require('./middlewares/errorHandler');
+const rateLimit = require('./middlewares/rateLimit');
+
+// Rotas
 const userRoutes = require('./routes/usuarioRoutes');
-
-// Importa a rota padrão e a de status da api
 const statusRoutes = require('./routes/statusRoutes');
-
-// Importa as rotas do paciente
 const pacienteRoutes = require("./routes/PacienteRoutes");
-
-// Importa as rotas da consulta
 const consultasRoutes = require('./routes/ConsultaRoutes');
-
-// Carrega as variáveis de ambiente do arquivo .env
-dotenv.config();
+const auditRoutes = require('./routes/auditRoutes');
 
 // Cria uma instância do Express
 const app = express();
 
 // Middlewares globais
-// Permite CORS para todos os domínios e todos os métodos
-app.use(cors());
-
-// Permite que o Express entenda requisições com corpo em JSON
+app.use(requestId);
+app.use(securityHeaders);
+app.use(cors({ origin: (origin, cb) => {
+  // Em dev aceita tudo; em prod limita se configurado
+  if (config.env !== 'production' || config.corsOrigins.includes('*') || !origin) return cb(null, true);
+  return cb(null, config.corsOrigins.includes(origin));
+}}));
 app.use(express.json());
 
+// Métricas simples em memória
+const metrics = { totalRequests: 0, perRoute: {}, errors: 0 };
+app.use((req, res, next) => {
+  const start = Date.now();
+  metrics.totalRequests++;
+  res.on('finish', () => {
+    const key = `${req.method} ${req.path}`;
+    metrics.perRoute[key] = (metrics.perRoute[key] || 0) + 1;
+    const duration = Date.now() - start;
+    if (res.statusCode >= 500) metrics.errors++;
+    logger.info('request_finished', { requestId: req.id, method: req.method, path: req.originalUrl, status: res.statusCode, duration_ms: duration });
+  });
+  next();
+});
+
 // Rotas da aplicação
-// Todas as rotas de usuário começam com /usuarios
+// Rate limit específico para login (proteção básica)
+app.use('/api/v1/usuarios/login', rateLimit({ windowMs: 60_000, max: 10, keyGenerator: (req) => req.ip }));
+
 app.use('/api/v1/usuarios', userRoutes);
 app.use('/api/v1/pacientes', pacienteRoutes);
 app.use('/api/v1/consultas', consultasRoutes);
+app.use('/api/v1/auditoria', auditRoutes);
 app.use('/', statusRoutes);
 
-// Healthcheck simples para verificar se o servidor está online
-// GET /health retorna um JSON com status 'ok'
+// Health e métricas
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/metrics', (_req, res) => res.json(metrics));
 
 // Configura o Swagger
 setupSwagger(app);
 
-// Middleware para tratar rotas não encontradas (404)
-// Deve ficar no final, depois de todas as rotas definidas
+// 404 handler
 app.use((req, res) => {
-  res.status(404).json({ message: 'Rota não encontrada' });
+  res.status(404).json({ message: 'Rota não encontrada', path: req.originalUrl, requestId: req.id });
 });
 
+// Error handler (sempre por último)
+app.use(errorHandler);
+
 // Inicialização do servidor
-// Usa a porta definida no .env ou 3000 por padrão
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+app.listen(config.port, () => {
+  logger.info('server_started', { port: config.port, env: config.env });
 });

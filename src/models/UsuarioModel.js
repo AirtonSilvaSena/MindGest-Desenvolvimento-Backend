@@ -3,7 +3,7 @@ const db = require('../config/db');
 
 // Define os campos públicos que podem ser retornados nas consultas
 const selectPublicFields = `
-  id, nome, email, telefone, criado_em, atualizado_em
+  id, nome, email, telefone, criado_em, atualizado_em, tipo, pessoa_tipo, empresa_nome, cpf, cnpj, must_reset_password, ativo
 `;
 
 module.exports = {
@@ -26,18 +26,23 @@ module.exports = {
     return rows[0] || null; // Retorna o usuário ou null se não existir
   },
 
+  async count() {
+    const [rows] = await db.query(`SELECT COUNT(*) AS total FROM usuarios`);
+    return rows[0]?.total || 0;
+  },
+
   // Função para criar um novo usuário
-  async create({ nome, email, senhaHash, telefone, tipo}) {
+  async create({ nome, email, senhaHash, telefone, tipo, pessoa_tipo, cpf, cnpj, empresa_nome, must_reset_password }) {
     const [result] = await db.query(
-      `INSERT INTO usuarios (nome, email, senha, telefone, tipo) VALUES (?, ?, ?, ?, ?)`,
-      [nome, email, senhaHash, telefone ?? null, tipo ?? 'cliente'] // Se telefone não for informado, envia null
-                                                                    // se tipo nao for informado, envia cliente
+      `INSERT INTO usuarios (nome, email, senha, telefone, tipo, pessoa_tipo, cpf, cnpj, empresa_nome, must_reset_password)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [nome, email, senhaHash, telefone ?? null, tipo ?? 'profissional', pessoa_tipo, cpf ?? null, cnpj ?? null, empresa_nome ?? null, must_reset_password ? 1 : 0]
     );
     return result.insertId; // Retorna o ID do novo usuário criado
   },
 
   // Função para atualizar um usuário
-  async update(id, { nome, email, senhaHash, telefone }) {
+  async update(id, { nome, email, senhaHash, telefone, empresa_nome, ativo }) {
     const fields = []; // Campos que serão atualizados
     const values = []; // Valores correspondentes aos campos
 
@@ -46,6 +51,8 @@ module.exports = {
     if (email !== undefined) { fields.push('email = ?'); values.push(email); }
     if (senhaHash !== undefined) { fields.push('senha = ?'); values.push(senhaHash); }
     if (telefone !== undefined) { fields.push('telefone = ?'); values.push(telefone); }
+    if (empresa_nome !== undefined) { fields.push('empresa_nome = ?'); values.push(empresa_nome); }
+    if (ativo !== undefined) { fields.push('ativo = ?'); values.push(ativo ? 1 : 0); }
 
     if (fields.length === 0) return; // Se nenhum campo foi passado, não faz nada
 
@@ -64,7 +71,15 @@ module.exports = {
   // Função para retornar apenas os dados públicos do usuário (sem senha)
   toPublic(userRow) {
     if (!userRow) return null;
-    const { senha, ...rest } = userRow; // Remove o campo 'senha'
-    return rest; // Retorna o restante dos dados
+    const { senha, cpf, cnpj, ...rest } = userRow; // Remove o campo 'senha'
+    // Mascarar CPF/CNPJ quando presentes
+    const mask = (v, type) => {
+      if (!v) return v;
+      const only = String(v).replace(/\D+/g, '');
+      if (type === 'CPF' && only.length === 11) return `***.${only.slice(3,6)}.${only.slice(6,9)}-**`;
+      if (type === 'CNPJ' && only.length === 14) return `**.${only.slice(2,5)}.${only.slice(5,8)}/****-**`;
+      return '***';
+    };
+    return { ...rest, cpf: mask(cpf, 'CPF'), cnpj: mask(cnpj, 'CNPJ') };
   }
 };

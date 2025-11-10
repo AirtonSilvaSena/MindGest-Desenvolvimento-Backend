@@ -4,7 +4,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Importa o model de usuário para interagir com o banco
 const UserModel = require('../models/UsuarioModel');
-console.log("-> UserModel: " + UserModel);
+const logger = require('../utils/logger');
+const { audit, maskUser } = require('../services/auditService');
+const crypto = require('crypto');
+const mailer = require('../services/mailer');
 // Função auxiliar para mapear usuário para uma versão pública (sem senha, etc.)
 function mapPublic(u) {
   return UserModel.toPublic(u);
@@ -28,22 +31,36 @@ module.exports = {
   // Cria um novo usuário
   async store(req, res) {
     try {
-      const { nome, email, senha, telefone, tipo } = req.body; // Pega dados do corpo da requisição
+      const { nome, email, telefone, pessoa_tipo, cpf, cnpj, empresa_nome } = req.body;
 
-      // Cria um "salt" e gera o hash da senha
+      // Gera senha temporária para criação por admin
+      const tempPassword = crypto.randomBytes(9).toString('base64');
       const salt = await bcrypt.genSalt(10);
-      const senhaHash = await bcrypt.hash(senha, salt);
+      const senhaHash = await bcrypt.hash(tempPassword, salt);
 
-      // Insere no banco e retorna o ID criado
-      const insertId = await UserModel.create({ nome, email, senhaHash, telefone, tipo });
-      const created = await UserModel.getById(insertId); // Busca novamente para retornar os dados
-      return res.status(201).json(mapPublic(created)); // Retorna o usuário criado (somente dados públicos)
+      const nomeToSave = pessoa_tipo === 'PJ' ? (empresa_nome || nome) : nome;
+      const insertId = await UserModel.create({
+        nome: nomeToSave,
+        email,
+        senhaHash,
+        telefone,
+        tipo: 'profissional',
+        pessoa_tipo,
+        cpf,
+        cnpj,
+        empresa_nome,
+        must_reset_password: 1
+      });
+      const created = await UserModel.getById(insertId);
+      await audit({ req, recurso: 'usuario', acao: 'CREATE', usuarioId: created.id, entidadeId: created.id, antes: null, depois: maskUser(created) });
+      try { await mailer.sendWelcome({ to: email, tempPassword }); } catch {}
+      return res.status(201).json({ ...mapPublic(created), tempPasswordSent: true });
     } catch (err) {
       // Tratamento de erro para email duplicado
       if (err && err.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ message: 'Email já cadastrado' });
       }
-      console.error(err);
+      logger.error('usuario_store_error', { err: { message: err.message } });
       return res.status(500).json({ message: 'Erro ao criar usuário' });
     }
   },
@@ -74,13 +91,14 @@ module.exports = {
       });
 
       const updated = await UserModel.getById(id); // Busca o usuário atualizado
+      await audit({ req, recurso: 'usuario', acao: 'UPDATE', usuarioId: existing.id, entidadeId: existing.id, antes: maskUser(existing), depois: maskUser(updated) });
       return res.json(mapPublic(updated)); // Retorna dados públicos atualizados
     } catch (err) {
       // Tratamento de email duplicado
       if (err && err.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ message: 'Email já cadastrado' });
       }
-      console.error(err);
+      logger.error('usuario_update_error', { err: { message: err.message } });
       return res.status(500).json({ message: 'Erro ao atualizar usuário' });
     }
   },
@@ -96,7 +114,7 @@ module.exports = {
     // Deleta do banco
     const ok = await UserModel.delete(id);
     if (!ok) return res.status(500).json({ message: 'Erro ao remover usuário' });
-
+    await audit({ req, recurso: 'usuario', acao: 'DELETE', usuarioId: existing.id, entidadeId: existing.id, antes: maskUser(existing), depois: null });
     return res.status(204).send(); // Retorna 204 No Content
   },
 
@@ -121,26 +139,20 @@ module.exports = {
       );
 
       // Retorna token para o cliente
-      res.json({ token });
+      // Auditoria de login (ação de autenticação)
+      await audit({ req, recurso: 'auth', acao: 'LOGIN', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: true, email } });
+      res.json({ token, mustResetPassword: !!usuario.must_reset_password, tipo: usuario.tipo });
     } catch (error) {
-      console.error(error);
+      logger.error('usuario_login_error', { err: { message: error.message } });
       res.status(500).json({ message: 'Erro ao autenticar usuário' });
     }
   },
 
   async validateToken(req, res) {
-    console.log("-> Inciou validadeToken");
     try {
-      
-      console.log("-> Req: ", req)
-      console.log("-> Req.user: ", req.user)
-      console.log("-> req.user.id: ", req.user.id)
-
       const userId = req.user.id; // pega o id do token
-      console.log("Validate Id: ", userId)
       // Busca o usuário completo no banco
       const user = await UserModel.getById(userId); // ou o método que você usa no seu model
-      console.log("Dados do Usuário: ", user)
       if (!user) {
         return res.status(404).json({ message: 'Usuário não encontrado' });
       }
@@ -154,8 +166,80 @@ module.exports = {
       });
 
     } catch (error) {
-      console.error(error);
+      logger.error('usuario_validate_token_error', { err: { message: error.message } });
       res.status(500).json({ message: 'Erro interno' });
+    }
+  },
+
+  async changePassword(req, res) {
+    try {
+      const userId = req.user.id;
+      const { senha_atual, nova_senha } = req.body;
+      const user = await UserModel.getById(userId);
+      if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+      const ok = await bcrypt.compare(senha_atual, user.senha);
+      if (!ok) return res.status(400).json({ message: 'Senha atual incorreta' });
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(nova_senha, salt);
+      await require('../config/db').query('UPDATE usuarios SET senha = ?, must_reset_password = 0 WHERE id = ?', [hash, userId]);
+      const updated = await UserModel.getById(userId);
+      await audit({ req, recurso: 'usuario', acao: 'CHANGE_PASSWORD', usuarioId: userId, entidadeId: userId, antes: null, depois: { changed: true } });
+      return res.json(mapPublic(updated));
+    } catch (e) {
+      logger.error('usuario_change_password_error', { err: { message: e.message } });
+      return res.status(500).json({ message: 'Erro ao alterar senha' });
+    }
+  },
+
+  async bootstrapAdmin(req, res) {
+    try {
+      // Permite bootstrap se não houver nenhum admin, independentemente de existirem outros usuários
+      const db = require('../config/db');
+      const [rows] = await db.query("SELECT COUNT(*) AS total FROM usuarios WHERE tipo = 'admin'");
+      const totalAdmins = rows[0]?.total || 0;
+      if (totalAdmins > 0) return res.status(409).json({ message: 'Já existe admin' });
+      const { email, senha, nome } = req.body || {};
+      if (!email || !senha) return res.status(422).json({ message: 'email e senha são obrigatórios' });
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(senha, salt);
+      const insertId = await UserModel.create({
+        nome: nome || 'Super Admin',
+        email,
+        senhaHash: hash,
+        telefone: null,
+        tipo: 'admin',
+        pessoa_tipo: 'PF',
+        cpf: null,
+        cnpj: null,
+        empresa_nome: null,
+        must_reset_password: 1
+      });
+      const created = await UserModel.getById(insertId);
+      await audit({ req, recurso: 'usuario', acao: 'BOOTSTRAP_ADMIN', usuarioId: created.id, entidadeId: created.id, antes: null, depois: maskUser(created) });
+      return res.status(201).json(mapPublic(created));
+    } catch (e) {
+      logger.error('usuario_bootstrap_admin_error', { err: { message: e.message } });
+      return res.status(500).json({ message: 'Erro ao criar admin' });
+    }
+  }
+  ,
+  async resetPassword(req, res) {
+    try {
+      const { id } = req.params;
+      const target = await UserModel.getById(id);
+      if (!target) return res.status(404).json({ message: 'Usuário não encontrado' });
+      // Somente admin (rota já protegida), gera senha temporária nova
+      const tempPassword = crypto.randomBytes(9).toString('base64');
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(tempPassword, salt);
+      await require('../config/db').query('UPDATE usuarios SET senha = ?, must_reset_password = 1 WHERE id = ?', [hash, id]);
+      const updated = await UserModel.getById(id);
+      await audit({ req, recurso: 'usuario', acao: 'RESET_PASSWORD', usuarioId: req.user.id, entidadeId: id, antes: maskUser(target), depois: maskUser(updated) });
+      try { await mailer.sendReset({ to: updated.email, tempPassword }); } catch {}
+      return res.json({ ...mapPublic(updated), tempPassword });
+    } catch (e) {
+      logger.error('usuario_reset_password_error', { err: { message: e.message } });
+      return res.status(500).json({ message: 'Erro ao resetar senha' });
     }
   }
 };

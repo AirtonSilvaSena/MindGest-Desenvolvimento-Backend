@@ -17,9 +17,9 @@ const Consultas = {
       consulta.hora_inicio,
       consulta.duracao_minutos,
       consulta.telefone,
-      consulta.email,
-      consulta.valor_sessao,
-      consulta.observacoes || null // Se não vier observação, salva null
+      consulta.email ?? null,
+      consulta.valor_sessao ?? null,
+      (consulta.observacoes !== undefined ? consulta.observacoes : null)
     ]);
 
     // Após inserir, retorna a consulta completa (com joins) pelo ID criado
@@ -77,9 +77,9 @@ const Consultas = {
       dados.hora_inicio,
       dados.duracao_minutos,
       dados.telefone,
-      dados.email,
-      dados.valor_sessao,
-      dados.observacoes,
+      (dados.email !== undefined ? dados.email : null),
+      (dados.valor_sessao !== undefined ? dados.valor_sessao : null),
+      (dados.observacoes !== undefined ? dados.observacoes : null),
       id,
       dados.profissional_id
     ]);

@@ -1,4 +1,6 @@
 const Consultas = require('../models/ConsultaModel'); // Importa o model de consultas, onde ficam as queries SQL
+const { audit } = require('../services/auditService');
+const logger = require('../utils/logger');
 
 const consultasController = {
   // Criação de uma nova consulta
@@ -38,9 +40,10 @@ const consultasController = {
       });
 
       // Retorna a consulta criada
+      await audit({ req, recurso: 'consulta', acao: 'CREATE', usuarioId: profissional_id, entidadeId: novaConsulta.id, antes: null, depois: novaConsulta });
       res.status(201).json(novaConsulta);
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_create_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao criar consulta.' });
     }
   },
@@ -52,7 +55,7 @@ const consultasController = {
       const consultas = await Consultas.findAllByProfissional(profissional_id);
       res.json(consultas);
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_list_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao listar consultas.' });
     }
   },
@@ -70,7 +73,7 @@ const consultasController = {
 
       res.json(consulta);
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_getById_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao buscar consulta.' });
     }
   },
@@ -96,9 +99,10 @@ const consultasController = {
 
       if (!consultaAtualizada) return res.status(404).json({ message: 'Consulta não encontrada ou sem permissão.' });
 
+      await audit({ req, recurso: 'consulta', acao: 'UPDATE', usuarioId: profissional_id, entidadeId: Number(req.params.id), antes: null, depois: consultaAtualizada });
       res.json(consultaAtualizada);
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_update_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao atualizar consulta.' });
     }
   },
@@ -124,9 +128,10 @@ const consultasController = {
 
       // Atualiza o status
       const consultaAtualizada = await Consultas.updateStatus(req.params.id, status);
+      await audit({ req, recurso: 'consulta', acao: 'STATUS', usuarioId: req.user.id, entidadeId: Number(req.params.id), antes: consulta, depois: consultaAtualizada });
       res.json(consultaAtualizada);
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_update_status_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao atualizar status.' });
     }
   },
@@ -137,12 +142,13 @@ const consultasController = {
       const profissional_id = req.user.id;
 
       // Deleta a consulta (apenas se pertencer ao profissional autenticado)
+      const before = await Consultas.findById(req.params.id);
       const sucesso = await Consultas.delete(req.params.id, profissional_id);
       if (!sucesso) return res.status(404).json({ message: 'Consulta não encontrada ou sem permissão.' });
-
+      await audit({ req, recurso: 'consulta', acao: 'DELETE', usuarioId: profissional_id, entidadeId: Number(req.params.id), antes: before, depois: null });
       res.json({ message: 'Consulta removida com sucesso.' });
     } catch (err) {
-      console.error(err);
+      logger.error('consulta_delete_error', { err: { message: err.message } });
       res.status(500).json({ message: 'Erro ao remover consulta.' });
     }
   }
