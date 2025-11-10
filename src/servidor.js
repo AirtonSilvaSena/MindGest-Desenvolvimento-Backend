@@ -5,6 +5,9 @@ const setupSwagger = require('./config/swagger');
 // Importa dotenv para carregar variáveis de ambiente do arquivo .env
 const dotenv = require('dotenv');
 
+// Importa o cors
+const cors = require('cors');
+
 // Importa as rotas de usuários
 const userRoutes = require('./routes/usuarioRoutes');
 
@@ -24,6 +27,9 @@ dotenv.config();
 const app = express();
 
 // Middlewares globais
+// Permite CORS para todos os domínios e todos os métodos
+app.use(cors());
+
 // Permite que o Express entenda requisições com corpo em JSON
 app.use(express.json());
 
@@ -37,10 +43,9 @@ app.use('/', statusRoutes);
 // Healthcheck simples para verificar se o servidor está online
 // GET /health retorna um JSON com status 'ok'
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Configura o Swagger
 setupSwagger(app);
-
-
-
 
 // Middleware para tratar rotas não encontradas (404)
 // Deve ficar no final, depois de todas as rotas definidas
@@ -54,5 +59,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
-
-
