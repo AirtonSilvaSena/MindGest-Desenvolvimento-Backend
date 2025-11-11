@@ -98,5 +98,12 @@ module.exports = {
       return '***';
     };
     return { ...rest, cpf: mask(cpf, 'CPF'), cnpj: mask(cnpj, 'CNPJ') };
+  },
+
+  // Variante que mantém CPF/CNPJ sem máscara (uso em respostas admin/self)
+  toPublicWithSensitive(userRow) {
+    if (!userRow) return null;
+    const { senha, ...rest } = userRow;
+    return { ...rest };
   }
 };

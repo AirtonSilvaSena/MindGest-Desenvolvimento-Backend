@@ -14,7 +14,7 @@ module.exports = function enforceLicense() {
       if (!req.user) return next();
       // Admin não é bloqueado por licença
       if (req.user.tipo === 'admin') return next();
-      if (allowed.has(req.path)) return next();
+      if (allowed.has(req.path) || (req.path && req.path.startsWith('/api/v1/inbox'))) return next();
       const lic = await Lic.getActiveByUserId(req.user.id);
       if (!lic || !lic.plano_ativo) {
         return res.status(403).json({ message: 'Plano inativo ou licença ausente', mustRenew: true });

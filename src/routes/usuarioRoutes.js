@@ -7,6 +7,7 @@ const requireAdmin = require('../middlewares/requireAdmin');
 const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
 
 const router = Router();
+const LicencaCtrl = require('../controllers/UserLicencaController');
 
 /**
  * @swagger
@@ -353,7 +354,8 @@ router.put('/me', autenticar, enforcePasswordReset(), updateUserValidation, hand
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.put('/:id', autenticar, enforcePasswordReset(), updateUserValidation, handleValidation, UserController.update);
+// Atualizar usuário (somente admin)
+router.put('/:id', autenticar, requireAdmin, enforcePasswordReset(), updateUserValidation, handleValidation, UserController.update);
 
 // Deletar usuário
 /**
@@ -381,11 +383,46 @@ router.put('/:id', autenticar, enforcePasswordReset(), updateUserValidation, han
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.delete('/:id', autenticar, enforcePasswordReset(), idParamValidation, handleValidation, UserController.destroy);
+// Deletar usuário (somente admin)
+router.delete('/:id', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, UserController.destroy);
 
 // Bootstrap do primeiro admin (somente quando não existem usuários)
 router.post('/bootstrap-admin', UserController.bootstrapAdmin);
+/**
+ * @swagger
+ * /api/v1/usuarios/{id}/reset-password:
+ *   post:
+ *     summary: Resetar senha de um usuário (admin)
+ *     description: Gera uma senha temporária e marca must_reset_password=1. Envia e-mail se o mailer estiver habilitado.
+ *     tags: [Usuários]
+ *     security: [ { bearerAuth: [] } ]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Senha resetada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tempPassword: { type: string }
+ *                 usuario:
+ *                   $ref: '#/components/schemas/Usuario'
+ *       401: { description: Token não fornecido }
+ *       403: { description: Acesso negado }
+ *       404: { description: Usuário não encontrado }
+ */
 router.post('/:id/reset-password', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, UserController.resetPassword);
+
+// Licenças do usuário (admin)
+router.get('/:id/licenca/ativa', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, LicencaCtrl.getActive);
+router.get('/:id/licencas', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, LicencaCtrl.list);
+router.post('/:id/licencas/assign', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, LicencaCtrl.assign);
+router.post('/:id/licencas/renew', autenticar, requireAdmin, enforcePasswordReset(), idParamValidation, handleValidation, LicencaCtrl.renew);
 
 
 

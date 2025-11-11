@@ -10,7 +10,8 @@
     { "key": "token", "value": "" },
     { "key": "usuarioId", "value": "" },
     { "key": "pacienteId", "value": "" },
-    { "key": "consultaId", "value": "" }
+    { "key": "consultaId", "value": "" },
+    { "key": "mensagemId", "value": "" }
   ],
   "item": [
     {
@@ -301,6 +302,79 @@
           "name": "Criar usuário PJ (telefone + plano)",
           "request": {"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/usuarios","body":{"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PJ\",\n  \"empresa_nome\": \"Empresa Exemplo\",\n  \"cnpj\": \"11222333000181\",\n  \"email\": \"pj@example.com\",\n  \"telefone\": \"21988887777\",\n  \"plano_id\": 1\n}"}}
         }
+      ]
+    },
+    {
+      "name": "Mensagens (Admin)",
+      "item": [
+        {
+          "name": "Criar mensagem (todos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/mensagens",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Comunicado geral\",\n  \"corpo\": \"Bem-vindos ao MindGest!\",\n  \"tipo\": \"comunicado\",\n  \"destino\": \"todos\",\n  \"sendEmail\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Criado 201', ()=> pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.collectionVariables.set('mensagemId', data.mensagem.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar mensagem (por_ids)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{token}}"},
+              {"key":"Content-Type","value":"application/json"}
+            ],
+            "url": "{{baseUrl}}/api/v1/mensagens",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Cobrança\",\n  \"corpo\": \"Sua fatura vence em 3 dias.\",\n  \"tipo\": \"cobranca\",\n  \"destino\": \"por_ids\",\n  \"usuario_ids\": [ {{usuarioId}} ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar mensagens",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/mensagens?tipo=&q=&page=1&limit=20"}
+        },
+        {
+          "name": "Detalhar mensagem",
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/mensagens/{{mensagemId}}"}
+        },
+        {
+          "name": "Atualizar mensagem",
+          "request": {"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/mensagens/{{mensagemId}}","body":{"mode":"raw","raw":"{\n  \"titulo\": \"Comunicado atualizado\"\n}"}}
+        },
+        {
+          "name": "Excluir mensagem",
+          "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/mensagens/{{mensagemId}}"}
+        }
+      ]
+    },
+    {
+      "name": "Inbox",
+      "item": [
+        {"name":"Listar inbox (não lidas)","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/inbox?status=unread&page=1&limit=20"}},
+        {"name":"Contar não lidas","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/inbox/unread-count"}},
+        {"name":"Detalhar mensagem","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/inbox/{{mensagemId}}"}},
+        {"name":"Marcar como lida","request":{"method":"PATCH","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/inbox/{{mensagemId}}/read","body":{"mode":"raw","raw":"{\\n  \\\"read\\\": true\\n}"}}}
       ]
     }
   ]

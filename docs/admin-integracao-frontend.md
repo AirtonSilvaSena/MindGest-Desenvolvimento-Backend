@@ -171,6 +171,196 @@ Obs.: rotas de monitor têm rate limit básico.
 - Monitor (admin)
   - Dashboard com seções: DB Summary, DB Health (ping ms), Server Summary (memória, CPU, logs).
 
+## Exemplo Frontend (React + Axios)
+
+Trecho exemplificativo (React Router v6) com Axios, interceptors, guarda de rotas e tela de troca de senha para o fluxo de admin.
+
+Código meramente ilustrativo; adapte a organização do seu projeto.
+
+1) Cliente Axios com interceptors
+
+```ts
+// services/api.ts
+import axios from 'axios';
+
+export const api = axios.create({ baseURL: '/api/v1' });
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+
+    if (status === 401) {
+      localStorage.clear();
+      window.location.href = '/admin/login';
+      return;
+    }
+
+    if (status === 403 && data?.mustResetPassword) {
+      window.location.href = '/admin/trocar-senha';
+      return;
+    }
+
+    return Promise.reject(error);
+  }
+);
+```
+
+2) Serviço de autenticação do admin
+
+```ts
+// services/auth.ts
+import { api } from './api';
+
+type LoginAdminRequest = { email: string; senha: string };
+
+export async function loginAdmin(payload: LoginAdminRequest) {
+  const { data } = await api.post('/usuarios/login-admin', payload);
+  localStorage.setItem('token', data.token);
+  localStorage.setItem('tipo', data.tipo);
+  localStorage.setItem('mustResetPassword', String(!!data.mustResetPassword));
+
+  if (data.mustResetPassword) {
+    window.location.href = '/admin/trocar-senha';
+  } else {
+    window.location.href = '/admin';
+  }
+}
+
+export async function validateSession() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  const { data } = await api.get('/usuarios/validarToken');
+  return data.infoUser; // contém tipo, etc.
+}
+
+export async function changePassword(params: { senha_atual: string; nova_senha: string }) {
+  const { data } = await api.put('/usuarios/me/senha', params);
+  localStorage.setItem('mustResetPassword', 'false');
+  return data; // usuário público atualizado
+}
+```
+
+3) Guardas de rota (somente admin e exigência de troca de senha)
+
+```tsx
+// components/RouteGuards.tsx
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+
+export function RequireAdmin({ children }: { children: React.ReactElement }) {
+  const tipo = localStorage.getItem('tipo');
+  if (tipo !== 'admin') return <Navigate to="/admin/login" replace />;
+  return children;
+}
+
+export function RequirePasswordChanged({ children }: { children: React.ReactElement }) {
+  const must = localStorage.getItem('mustResetPassword') === 'true';
+  if (must) return <Navigate to="/admin/trocar-senha" replace />;
+  return children;
+}
+```
+
+4) Tela de troca de senha do admin (primeiro acesso)
+
+```tsx
+// pages/AdminTrocarSenha.tsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { changePassword } from '../services/auth';
+
+export default function AdminTrocarSenha() {
+  const [senhaAtual, setSenhaAtual] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await changePassword({ senha_atual: senhaAtual, nova_senha: novaSenha });
+      // opcional: revalidar sessão
+      navigate('/admin');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit}>
+      <h1>Trocar senha</h1>
+      <label>
+        Senha atual
+        <input type="password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)} required />
+      </label>
+      <label>
+        Nova senha
+        <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} required />
+      </label>
+      <button type="submit" disabled={loading}>Salvar</button>
+    </form>
+  );
+}
+```
+
+5) Rotas (React Router v6)
+
+```tsx
+// App.tsx
+import React, { useEffect, useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { RequireAdmin, RequirePasswordChanged } from './components/RouteGuards';
+import { validateSession } from './services/auth';
+
+import AdminLogin from './pages/AdminLogin';
+import AdminTrocarSenha from './pages/AdminTrocarSenha';
+import AdminLayout from './pages/AdminLayout';
+
+export default function App() {
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    // Hidrata sessão ao iniciar o app
+    validateSession().finally(() => setBooted(true));
+  }, []);
+
+  if (!booted) return null; // splash/loading opcional
+
+  return (
+    <Routes>
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/trocar-senha" element={<AdminTrocarSenha />} />
+      <Route
+        path="/admin/*"
+        element={
+          <RequireAdmin>
+            <RequirePasswordChanged>
+              <AdminLayout />
+            </RequirePasswordChanged>
+          </RequireAdmin>
+        }
+      />
+    </Routes>
+  );
+}
+```
+
+Observações
+- O backend já impõe `enforcePasswordReset`. Mesmo com guards, considere o interceptor 403 para cobrir casos fora das rotas.
+- Em ambientes com baseURL diferente, ajuste `api` conforme necessário.
+- Para feedbacks, trate mensagens 400/403/422 e exiba erros de validação.
+
 ## Especificações de Respostas e Erros Comuns
 
 - 401 `{ message: 'Token não fornecido' }` — ausência de JWT.

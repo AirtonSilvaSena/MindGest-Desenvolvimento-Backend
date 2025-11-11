@@ -19,6 +19,33 @@
 CREATE DATABASE IF NOT EXISTS `mindgest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */;
 USE `mindgest`;
 
+-- Caixa de Entrada: Mensagens e Destinatários
+CREATE TABLE IF NOT EXISTS `mensagens` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `titulo` varchar(200) NOT NULL,
+  `corpo` text NOT NULL,
+  `tipo` varchar(30) DEFAULT 'outro',
+  `criado_por_admin_id` int(11) NOT NULL,
+  `criado_em` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `tipo` (`tipo`),
+  KEY `criado_por_admin_id` (`criado_por_admin_id`),
+  CONSTRAINT `fk_mensagens_admin_user` FOREIGN KEY (`criado_por_admin_id`) REFERENCES `usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `mensagens_destinatarios` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `mensagem_id` int(11) NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `lido_em` datetime DEFAULT NULL,
+  `criado_em` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_msg_user` (`mensagem_id`, `usuario_id`),
+  KEY `usuario_id_lido_em` (`usuario_id`,`lido_em`),
+  CONSTRAINT `fk_md_msg` FOREIGN KEY (`mensagem_id`) REFERENCES `mensagens` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_md_user` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Copiando estrutura para tabela mindgest.consultas
 CREATE TABLE IF NOT EXISTS `consultas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -167,3 +194,29 @@ CREATE TABLE IF NOT EXISTS `usuario_licencas` (
   CONSTRAINT `fk_ul_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_ul_plano` FOREIGN KEY (`plano_id`) REFERENCES `planos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Mensagens criadas pelo admin
+CREATE TABLE IF NOT EXISTS mensagens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(200) NOT NULL,
+  corpo TEXT NOT NULL,
+  tipo VARCHAR(30) DEFAULT 'outro', -- cobranca|comunicado|sistema|outro
+  criado_por_admin_id INT NOT NULL,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX (tipo),
+  INDEX (criado_por_admin_id),
+  CONSTRAINT fk_mensagens_admin_user FOREIGN KEY (criado_por_admin_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Liga mensagem aos destinatários e controla lido/não lido
+CREATE TABLE IF NOT EXISTS mensagens_destinatarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  mensagem_id INT NOT NULL,
+  usuario_id INT NOT NULL,
+  lido_em DATETIME NULL,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_msg_user (mensagem_id, usuario_id),
+  INDEX (usuario_id, lido_em),
+  CONSTRAINT fk_md_msg FOREIGN KEY (mensagem_id) REFERENCES mensagens(id) ON DELETE CASCADE,
+  CONSTRAINT fk_md_user FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

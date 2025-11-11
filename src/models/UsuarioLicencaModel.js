@@ -12,6 +12,17 @@ module.exports = {
     );
     return rows[0] || null;
   },
+  async listByUserId(usuarioId) {
+    const [rows] = await db.query(
+      `SELECT ul.*, p.descricao, p.dias_acesso, p.ativo AS plano_ativo
+       FROM usuario_licencas ul
+       JOIN planos p ON p.id = ul.plano_id
+       WHERE ul.usuario_id = ?
+       ORDER BY ul.id DESC`,
+      [usuarioId]
+    );
+    return rows || [];
+  },
 
   async deactivateAll(usuarioId) {
     await db.query('UPDATE usuario_licencas SET ativo = 0 WHERE usuario_id = ? AND ativo = 1', [usuarioId]);

@@ -19,6 +19,8 @@ const consultasRoutes = require('./routes/ConsultaRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const monitorRoutes = require('./routes/monitorRoutes');
 const planosRoutes = require('./routes/planosRoutes');
+const mensagensRoutes = require('./routes/mensagensRoutes');
+const inboxRoutes = require('./routes/inboxRoutes');
 
 // Cria uma instância do Express
 const app = express();
@@ -58,6 +60,8 @@ app.use('/api/v1/pacientes', pacienteRoutes);
 app.use('/api/v1/consultas', consultasRoutes);
 app.use('/api/v1/auditoria', auditRoutes);
 app.use('/api/v1/planos', planosRoutes);
+app.use('/api/v1/mensagens', mensagensRoutes);
+app.use('/api/v1/inbox', inboxRoutes);
 // Monitoramento admin
 app.use('/api/v1/admin/monitor', rateLimit({ windowMs: 60_000, max: 10, keyGenerator: (req) => req.ip }), monitorRoutes);
 app.use('/', statusRoutes);

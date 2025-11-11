@@ -1,4 +1,4 @@
-// Importa bcryptjs para encriptar e comparar senhas
+﻿// Importa bcryptjs para encriptar e comparar senhas
 const bcrypt = require('bcryptjs');
 // Importa jsonwebtoken para gerar tokens JWT
 const jwt = require('jsonwebtoken');
@@ -8,9 +8,9 @@ const logger = require('../utils/logger');
 const { audit, maskUser } = require('../services/auditService');
 const crypto = require('crypto');
 const mailer = require('../services/mailer');
-// Função auxiliar para mapear usuário para uma versão pública (sem senha, etc.)
-function mapPublic(u) {
-  return UserModel.toPublic(u);
+
+function mapPublic(u, { showSensitive = false } = {}) {
+  return showSensitive ? UserModel.toPublicWithSensitive(u) : UserModel.toPublic(u);
 }
 
 module.exports = {
@@ -18,9 +18,17 @@ module.exports = {
   async index(req, res) {
     const tipo = req.query && req.query.tipo ? String(req.query.tipo) : undefined;
     const users = await UserModel.getAll(tipo ? { tipo } : undefined);
-    // Mapeia para forma pública (mascara cpf/cnpj e remove senha)
-    const safe = (users || []).map(mapPublic);
-    return res.json(safe);
+    // Admin listagem: mostrar CPF/CNPJ sem máscara e incluir licença ativa para profissionais
+    const Lic = require('../models/UsuarioLicencaModel');
+    const mapped = await Promise.all((users || []).map(async (u) => {
+      const base = mapPublic(u, { showSensitive: true });
+      if (u.tipo === 'profissional') {
+        const lic = await Lic.getActiveByUserId(u.id);
+        return { ...base, licenca_ativa: lic };
+      }
+      return base;
+    }));
+    return res.json(mapped);
   },
 
   // Mostra um usuário específico pelo ID
@@ -32,7 +40,15 @@ module.exports = {
     if (req.user?.tipo !== 'admin' && req.user?.id !== Number(id)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
-    return res.json(mapPublic(user));
+    const actorIsAdmin = req.user?.tipo === 'admin';
+    const actorIsSelf = req.user?.id === Number(id);
+    const payload = mapPublic(user, { showSensitive: actorIsAdmin || actorIsSelf });
+    if (user.tipo === 'profissional') {
+      const Lic = require('../models/UsuarioLicencaModel');
+      const lic = await Lic.getActiveByUserId(user.id);
+      return res.json({ ...payload, licenca_ativa: lic });
+    }
+    return res.json(payload);
   },
 
   // Cria um novo usuário
@@ -72,7 +88,7 @@ module.exports = {
       const created = await UserModel.getById(insertId);
       await audit({ req, recurso: 'usuario', acao: 'CREATE', usuarioId: created.id, entidadeId: created.id, antes: null, depois: maskUser(created) });
       try { await mailer.sendWelcome({ to: email, tempPassword }); } catch {}
-      return res.status(201).json({ ...mapPublic(created), tempPasswordSent: true });
+      return res.status(201).json({ ...mapPublic(created, { showSensitive: true }), tempPasswordSent: true });
     } catch (err) {
       // Tratamento de erro para duplicidades em chaves únicas
       if (err && err.code === 'ER_DUP_ENTRY') {
@@ -128,7 +144,9 @@ module.exports = {
 
       const updated = await UserModel.getById(id); // Busca o usuário atualizado
       await audit({ req, recurso: 'usuario', acao: 'UPDATE', usuarioId: existing.id, entidadeId: existing.id, antes: maskUser(existing), depois: maskUser(updated) });
-      return res.json(mapPublic(updated)); // Retorna dados públicos atualizados
+      const actorIsAdmin = req.user?.tipo === 'admin';
+      const actorIsSelf = req.user?.id === Number(id);
+      return res.json(mapPublic(updated, { showSensitive: actorIsAdmin || actorIsSelf })); // Retorna dados públicos atualizados
     } catch (err) {
       // Tratamento de duplicidade
       if (err && err.code === 'ER_DUP_ENTRY') {
@@ -157,7 +175,6 @@ module.exports = {
 
     // Evita auto-delete e proteger último admin
     if (existing.tipo === 'admin') {
-      // Auto-delete opcionalmente bloqueado
       if (req.user?.id === Number(id)) {
         return res.status(403).json({ message: 'Admin não pode remover a si mesmo' });
       }
@@ -238,11 +255,10 @@ module.exports = {
   async me(req, res) {
     const user = await UserModel.getById(req.user.id);
     if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
-    return res.json(mapPublic(user));
+    return res.json(mapPublic(user, { showSensitive: true }));
   },
 
   async updateMe(req, res) {
-    // Reaproveita update com id do próprio usuário
     req.params.id = String(req.user.id);
     return this.update(req, res);
   },
@@ -270,21 +286,13 @@ module.exports = {
 
   async validateToken(req, res) {
     try {
-      const userId = req.user.id; // pega o id do token
-      // Busca o usuário completo no banco
-      const user = await UserModel.getById(userId); // ou o método que você usa no seu model
+      const userId = req.user.id;
+      const user = await UserModel.getById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Usuário não encontrado' });
       }
-
       const infoUser = mapPublic(user);
-      // Retorna uma resposta em formato JSON
-      res.json({
-        valid: true,         // Indica que o token foi validado com sucesso
-        infoUser   // Dados do usuário
-        // Esse 'req.user' vem do payload do JWT decodificado
-      });
-
+      res.json({ valid: true, infoUser });
     } catch (error) {
       logger.error('usuario_validate_token_error', { err: { message: error.message } });
       res.status(500).json({ message: 'Erro interno' });
@@ -304,7 +312,7 @@ module.exports = {
       await require('../config/db').query('UPDATE usuarios SET senha = ?, must_reset_password = 0 WHERE id = ?', [hash, userId]);
       const updated = await UserModel.getById(userId);
       await audit({ req, recurso: 'usuario', acao: 'CHANGE_PASSWORD', usuarioId: userId, entidadeId: userId, antes: null, depois: { changed: true } });
-      return res.json(mapPublic(updated));
+      return res.json(mapPublic(updated, { showSensitive: true }));
     } catch (e) {
       logger.error('usuario_change_password_error', { err: { message: e.message } });
       return res.status(500).json({ message: 'Erro ao alterar senha' });
@@ -313,8 +321,6 @@ module.exports = {
 
   async bootstrapAdmin(req, res) {
     try {
-      // Ajuste: permitir criação de múltiplos admins
-      // Mantemos endpoint simples para ambientes de teste; ver observação de segurança.
       const { email, senha, nome } = req.body || {};
       if (!email || !senha) return res.status(422).json({ message: 'email e senha são obrigatórios' });
       const salt = await bcrypt.genSalt(10);
@@ -333,19 +339,18 @@ module.exports = {
       });
       const created = await UserModel.getById(insertId);
       await audit({ req, recurso: 'usuario', acao: 'BOOTSTRAP_ADMIN', usuarioId: created.id, entidadeId: created.id, antes: null, depois: maskUser(created) });
-      return res.status(201).json(mapPublic(created));
+      return res.status(201).json(mapPublic(created, { showSensitive: true }));
     } catch (e) {
       logger.error('usuario_bootstrap_admin_error', { err: { message: e.message } });
       return res.status(500).json({ message: 'Erro ao criar admin' });
     }
-  }
-  ,
+  },
+
   async resetPassword(req, res) {
     try {
       const { id } = req.params;
       const target = await UserModel.getById(id);
       if (!target) return res.status(404).json({ message: 'Usuário não encontrado' });
-      // Somente admin (rota já protegida), gera senha temporária nova
       const tempPassword = crypto.randomBytes(9).toString('base64');
       const salt = await bcrypt.genSalt(10);
       const hash = await bcrypt.hash(tempPassword, salt);
@@ -353,7 +358,7 @@ module.exports = {
       const updated = await UserModel.getById(id);
       await audit({ req, recurso: 'usuario', acao: 'RESET_PASSWORD', usuarioId: req.user.id, entidadeId: id, antes: maskUser(target), depois: maskUser(updated) });
       try { await mailer.sendReset({ to: updated.email, tempPassword }); } catch {}
-      return res.json({ ...mapPublic(updated), tempPassword });
+      return res.json({ ...mapPublic(updated, { showSensitive: true }), tempPassword });
     } catch (e) {
       logger.error('usuario_reset_password_error', { err: { message: e.message } });
       return res.status(500).json({ message: 'Erro ao resetar senha' });
