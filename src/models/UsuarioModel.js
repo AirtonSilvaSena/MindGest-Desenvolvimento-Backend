@@ -7,10 +7,15 @@ const selectPublicFields = `
 `;
 
 module.exports = {
-  // Função para buscar todos os usuários, ordenados do mais recente para o mais antigo
-  async getAll() {
-    const [rows] = await db.query(`SELECT ${selectPublicFields} FROM usuarios ORDER BY id DESC`);
-    return rows; // Retorna array de usuários
+  // Busca todos os usuários; pode filtrar por tipo
+  async getAll(options = {}) {
+    const { tipo } = options || {};
+    let sql = `SELECT ${selectPublicFields} FROM usuarios`;
+    const params = [];
+    if (tipo) { sql += ` WHERE tipo = ?`; params.push(tipo); }
+    sql += ` ORDER BY id DESC`;
+    const [rows] = await db.query(sql, params);
+    return rows;
   },
 
   // Função para buscar um usuário pelo ID
@@ -24,6 +29,18 @@ module.exports = {
   async getByEmail(email) {
     const [rows] = await db.query(`SELECT * FROM usuarios WHERE email = ? LIMIT 1`, [email]);
     return rows[0] || null; // Retorna o usuário ou null se não existir
+  },
+
+  // Busca usuário PF por CPF
+  async getByCpf(cpf) {
+    const [rows] = await db.query(`SELECT * FROM usuarios WHERE pessoa_tipo = 'PF' AND cpf = ? LIMIT 1`, [cpf]);
+    return rows[0] || null;
+  },
+
+  // Busca usuário PJ por CNPJ
+  async getByCnpj(cnpj) {
+    const [rows] = await db.query(`SELECT * FROM usuarios WHERE pessoa_tipo = 'PJ' AND cnpj = ? LIMIT 1`, [cnpj]);
+    return rows[0] || null;
   },
 
   async count() {

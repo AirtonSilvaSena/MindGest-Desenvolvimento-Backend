@@ -17,6 +17,8 @@ const statusRoutes = require('./routes/statusRoutes');
 const pacienteRoutes = require("./routes/PacienteRoutes");
 const consultasRoutes = require('./routes/ConsultaRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const monitorRoutes = require('./routes/monitorRoutes');
+const planosRoutes = require('./routes/planosRoutes');
 
 // Cria uma instância do Express
 const app = express();
@@ -49,11 +51,15 @@ app.use((req, res, next) => {
 // Rotas da aplicação
 // Rate limit específico para login (proteção básica)
 app.use('/api/v1/usuarios/login', rateLimit({ windowMs: 60_000, max: 10, keyGenerator: (req) => req.ip }));
+app.use('/api/v1/usuarios/login-admin', rateLimit({ windowMs: 60_000, max: 10, keyGenerator: (req) => req.ip }));
 
 app.use('/api/v1/usuarios', userRoutes);
 app.use('/api/v1/pacientes', pacienteRoutes);
 app.use('/api/v1/consultas', consultasRoutes);
 app.use('/api/v1/auditoria', auditRoutes);
+app.use('/api/v1/planos', planosRoutes);
+// Monitoramento admin
+app.use('/api/v1/admin/monitor', rateLimit({ windowMs: 60_000, max: 10, keyGenerator: (req) => req.ip }), monitorRoutes);
 app.use('/', statusRoutes);
 
 // Health e métricas

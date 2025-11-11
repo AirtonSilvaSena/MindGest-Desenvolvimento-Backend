@@ -5,6 +5,7 @@ const { createPacienteValidation, updatePacienteValidation, idParamValidation, s
 const handleValidation = require('../middlewares/handleValidation');
 const autenticar = require('../middlewares/autenticar'); // Middleware de autenticação
 const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
+const enforceLicense = require('../middlewares/enforceLicense');
 
 /**
  * @swagger
@@ -80,10 +81,6 @@ const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Erro'
- *       401:
- *         description: Token não fornecido
- *       403:
- *         description: Token inválido
  *       500:
  *         description: Erro interno do servidor
  *
@@ -140,7 +137,7 @@ const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/", autenticar, enforcePasswordReset(), pacienteController.listar);
+router.get("/", autenticar, enforcePasswordReset(), enforceLicense(), pacienteController.listar);
 
 /**
  * @swagger
@@ -188,7 +185,7 @@ router.get("/", autenticar, enforcePasswordReset(), pacienteController.listar);
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/pesquisar", autenticar, enforcePasswordReset(), searchPacienteValidation, handleValidation, pacienteController.pesquisar);
+router.get("/pesquisar", autenticar, enforcePasswordReset(), enforceLicense(), searchPacienteValidation, handleValidation, pacienteController.pesquisar);
 
 /**
  * @swagger
@@ -320,7 +317,7 @@ router.get("/pesquisar", autenticar, enforcePasswordReset(), searchPacienteValid
  *       500:
  *         description: Erro interno do servidor
  */
-router.get("/:id", autenticar, idParamValidation, handleValidation, pacienteController.buscarPorId);
+router.get("/:id", autenticar, enforcePasswordReset(), enforceLicense(), idParamValidation, handleValidation, pacienteController.buscarPorId);
 
 /**
  * @swagger
@@ -366,7 +363,7 @@ router.get("/:id", autenticar, idParamValidation, handleValidation, pacienteCont
  *       500:
  *         description: Erro interno do servidor
  */
-router.post("/", autenticar, createPacienteValidation, handleValidation, pacienteController.criar);
+router.post("/", autenticar, enforcePasswordReset(), enforceLicense(), createPacienteValidation, handleValidation, pacienteController.criar);
 
 /**
  * @swagger
@@ -419,7 +416,7 @@ router.post("/", autenticar, createPacienteValidation, handleValidation, pacient
  *       500:
  *         description: Erro interno do servidor
  */
-router.put("/:id", autenticar, updatePacienteValidation, handleValidation, pacienteController.atualizar);
+router.put("/:id", autenticar, enforcePasswordReset(), enforceLicense(), updatePacienteValidation, handleValidation, pacienteController.atualizar);
 
 /**
  * @swagger
@@ -448,6 +445,6 @@ router.put("/:id", autenticar, updatePacienteValidation, handleValidation, pacie
  *       500:
  *         description: Erro interno do servidor
  */
-router.delete("/:id", autenticar, idParamValidation, handleValidation, pacienteController.excluir);
+router.delete("/:id", autenticar, enforcePasswordReset(), enforceLicense(), idParamValidation, handleValidation, pacienteController.excluir);
 
 module.exports = router;

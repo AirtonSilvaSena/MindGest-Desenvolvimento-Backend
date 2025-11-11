@@ -16,22 +16,29 @@ function mapPublic(u) {
 module.exports = {
   // Lista todos os usuários
   async index(req, res) {
-    const users = await UserModel.getAll(); // Busca todos do banco
-    return res.json(users); // Retorna como JSON
+    const tipo = req.query && req.query.tipo ? String(req.query.tipo) : undefined;
+    const users = await UserModel.getAll(tipo ? { tipo } : undefined);
+    // Mapeia para forma pública (mascara cpf/cnpj e remove senha)
+    const safe = (users || []).map(mapPublic);
+    return res.json(safe);
   },
 
   // Mostra um usuário específico pelo ID
   async show(req, res) {
-    const { id } = req.params; // Pega o ID da URL
-    const user = await UserModel.getById(id); // Busca no banco
-    if (!user) return res.status(404).json({ message: 'Usuário não encontrado' }); // Se não existir, retorna 404
-    return res.json(mapPublic(user)); // Retorna dados públicos do usuário
+    const { id } = req.params;
+    const user = await UserModel.getById(id);
+    if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+    // Admin pode ver qualquer; profissional apenas o próprio
+    if (req.user?.tipo !== 'admin' && req.user?.id !== Number(id)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+    return res.json(mapPublic(user));
   },
 
   // Cria um novo usuário
   async store(req, res) {
     try {
-      const { nome, email, telefone, pessoa_tipo, cpf, cnpj, empresa_nome } = req.body;
+      const { nome, email, telefone, pessoa_tipo, cpf, cnpj, empresa_nome, plano_id } = req.body;
 
       // Gera senha temporária para criação por admin
       const tempPassword = crypto.randomBytes(9).toString('base64');
@@ -51,14 +58,30 @@ module.exports = {
         empresa_nome,
         must_reset_password: 1
       });
+      // Vincula licença do plano (se fornecido)
+      try {
+        if (!plano_id) return res.status(422).json({ message: 'plano_id é obrigatório' });
+        const Plano = require('../models/PlanoModel');
+        const Lic = require('../models/UsuarioLicencaModel');
+        const plano = await Plano.getById(plano_id);
+        if (!plano || !plano.ativo) return res.status(422).json({ message: 'plano inválido ou inativo' });
+        await Lic.activateNew(insertId, plano_id, plano.dias_acesso);
+      } catch (e) {
+        logger.error('usuario_store_license_error', { err: { message: e.message } });
+      }
       const created = await UserModel.getById(insertId);
       await audit({ req, recurso: 'usuario', acao: 'CREATE', usuarioId: created.id, entidadeId: created.id, antes: null, depois: maskUser(created) });
       try { await mailer.sendWelcome({ to: email, tempPassword }); } catch {}
       return res.status(201).json({ ...mapPublic(created), tempPasswordSent: true });
     } catch (err) {
-      // Tratamento de erro para email duplicado
+      // Tratamento de erro para duplicidades em chaves únicas
       if (err && err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: 'Email já cadastrado' });
+        const msg = (err.sqlMessage || err.message || '').toLowerCase();
+        let friendly = 'Registro já existe';
+        if (msg.includes('uniq_usuarios_cpf') || msg.includes('cpf')) friendly = 'CPF já cadastrado';
+        else if (msg.includes('uniq_usuarios_cnpj') || msg.includes('cnpj')) friendly = 'CNPJ já cadastrado';
+        else if (msg.includes('email')) friendly = 'Email já cadastrado';
+        return res.status(409).json({ message: friendly });
       }
       logger.error('usuario_store_error', { err: { message: err.message } });
       return res.status(500).json({ message: 'Erro ao criar usuário' });
@@ -69,11 +92,17 @@ module.exports = {
   async update(req, res) {
     try {
       const { id } = req.params; // ID do usuário a ser atualizado
-      const { nome, email, senha, telefone } = req.body;
+      const { nome, email, senha, telefone, empresa_nome, ativo } = req.body || {};
 
       // Verifica se o usuário existe
       const existing = await UserModel.getById(id);
       if (!existing) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+      const isAdmin = req.user?.tipo === 'admin';
+      const isSelf = req.user?.id === Number(id);
+      if (!isAdmin && !isSelf) {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
 
       // Se a senha foi fornecida, gera hash novo
       let senhaHash;
@@ -82,21 +111,33 @@ module.exports = {
         senhaHash = await bcrypt.hash(senha, salt);
       }
 
-      // Atualiza os dados no banco
-      await UserModel.update(id, {
+      // Restringe campos conforme papel
+      const payload = {
         nome,
         email,
         senhaHash,
         telefone: telefone === undefined ? undefined : (telefone ?? null)
-      });
+      };
+      if (isAdmin) {
+        if (empresa_nome !== undefined) payload.empresa_nome = empresa_nome;
+        if (ativo !== undefined) payload.ativo = ativo ? 1 : 0;
+      }
+
+      // Atualiza os dados no banco
+      await UserModel.update(id, payload);
 
       const updated = await UserModel.getById(id); // Busca o usuário atualizado
       await audit({ req, recurso: 'usuario', acao: 'UPDATE', usuarioId: existing.id, entidadeId: existing.id, antes: maskUser(existing), depois: maskUser(updated) });
       return res.json(mapPublic(updated)); // Retorna dados públicos atualizados
     } catch (err) {
-      // Tratamento de email duplicado
+      // Tratamento de duplicidade
       if (err && err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: 'Email já cadastrado' });
+        const msg = (err.sqlMessage || err.message || '').toLowerCase();
+        let friendly = 'Registro já existe';
+        if (msg.includes('uniq_usuarios_cpf') || msg.includes('cpf')) friendly = 'CPF já cadastrado';
+        else if (msg.includes('uniq_usuarios_cnpj') || msg.includes('cnpj')) friendly = 'CNPJ já cadastrado';
+        else if (msg.includes('email')) friendly = 'Email já cadastrado';
+        return res.status(409).json({ message: friendly });
       }
       logger.error('usuario_update_error', { err: { message: err.message } });
       return res.status(500).json({ message: 'Erro ao atualizar usuário' });
@@ -111,6 +152,23 @@ module.exports = {
     const existing = await UserModel.getById(id);
     if (!existing) return res.status(404).json({ message: 'Usuário não encontrado' });
 
+    // Apenas admin pode deletar
+    if (req.user?.tipo !== 'admin') return res.status(403).json({ message: 'Acesso negado' });
+
+    // Evita auto-delete e proteger último admin
+    if (existing.tipo === 'admin') {
+      // Auto-delete opcionalmente bloqueado
+      if (req.user?.id === Number(id)) {
+        return res.status(403).json({ message: 'Admin não pode remover a si mesmo' });
+      }
+      const db = require('../config/db');
+      const [rows] = await db.query("SELECT COUNT(*) AS total FROM usuarios WHERE tipo = 'admin'");
+      const totalAdmins = rows[0]?.total || 0;
+      if (totalAdmins <= 1) {
+        return res.status(409).json({ message: 'Não é permitido remover o último admin' });
+      }
+    }
+
     // Deleta do banco
     const ok = await UserModel.delete(id);
     if (!ok) return res.status(500).json({ message: 'Erro ao remover usuário' });
@@ -118,33 +176,95 @@ module.exports = {
     return res.status(204).send(); // Retorna 204 No Content
   },
 
-  // Autenticação/login do usuário
+  // Login profissional (PF/PJ) por CPF/CNPJ
   async login(req, res) {
-    const { email, senha } = req.body;
-
+    const { pessoa_tipo, cpf, cnpj, senha } = req.body || {};
     try {
-      // Busca usuário pelo email
-      const usuario = await UserModel.getByEmail(email);
-      if (!usuario) return res.status(400).json({ message: "Usuário não encontrado" });
-
-      // Compara senha fornecida com a senha encriptada no banco
+      let usuario = null;
+      if (pessoa_tipo === 'PF') {
+        const doc = String(cpf || '').replace(/\D+/g, '');
+        usuario = await UserModel.getByCpf(doc);
+      } else if (pessoa_tipo === 'PJ') {
+        const doc = String(cnpj || '').replace(/\D+/g, '');
+        usuario = await UserModel.getByCnpj(doc);
+      }
+      if (!usuario || usuario.tipo !== 'profissional') {
+        return res.status(400).json({ message: 'Usuário não encontrado' });
+      }
       const senhaValida = await bcrypt.compare(senha, usuario.senha);
-      if (!senhaValida) return res.status(400).json({ message: "Senha incorreta" });
+      if (!senhaValida) return res.status(400).json({ message: 'Senha incorreta' });
 
-      // Gera token JWT com o ID do usuário
+      // Se for primeiro acesso, exigir troca de senha antes de liberar login
+      if (usuario.must_reset_password) {
+        const resetToken = jwt.sign(
+          { id: usuario.id, purpose: 'password_reset' },
+          process.env.JWT_SECRET,
+          { expiresIn: '10m' }
+        );
+        await audit({ req, recurso: 'auth', acao: 'LOGIN_BLOCKED_MUST_RESET', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: false, pessoa_tipo } });
+        return res.status(403).json({
+          message: 'Necessário alterar a senha antes de continuar',
+          mustResetPassword: true,
+          resetToken
+        });
+      }
+
+      // Verifica licença ativa do profissional
+      const Lic = require('../models/UsuarioLicencaModel');
+      const lic = await Lic.getActiveByUserId(usuario.id);
+      const now = Date.now();
+      const exp = lic ? new Date(lic.expira_em).getTime() : 0;
+      if (!lic || !lic.plano_ativo || exp <= now) {
+        await audit({ req, recurso: 'auth', acao: 'LOGIN_LICENSE_BLOCK', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: false } });
+        return res.status(403).json({ message: 'Licença expirada ou plano inativo', mustRenew: true, expiresAt: lic?.expira_em || null });
+      }
+
       const token = jwt.sign(
-        { id: usuario.id }, // Apenas o ID é armazenado no token
+        { id: usuario.id },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN } // Tempo de expiração definido no .env
+        { expiresIn: process.env.JWT_EXPIRES_IN }
       );
 
-      // Retorna token para o cliente
-      // Auditoria de login (ação de autenticação)
-      await audit({ req, recurso: 'auth', acao: 'LOGIN', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: true, email } });
-      res.json({ token, mustResetPassword: !!usuario.must_reset_password, tipo: usuario.tipo });
+      const daysRemaining = Math.ceil((exp - now) / (24*3600*1000));
+      await audit({ req, recurso: 'auth', acao: 'LOGIN', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: true, pessoa_tipo } });
+      res.json({ token, mustResetPassword: false, tipo: usuario.tipo, licenseExpiresAt: lic.expira_em, daysRemaining });
     } catch (error) {
       logger.error('usuario_login_error', { err: { message: error.message } });
       res.status(500).json({ message: 'Erro ao autenticar usuário' });
+    }
+  },
+
+  // Perfil próprio
+  async me(req, res) {
+    const user = await UserModel.getById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+    return res.json(mapPublic(user));
+  },
+
+  async updateMe(req, res) {
+    // Reaproveita update com id do próprio usuário
+    req.params.id = String(req.user.id);
+    return this.update(req, res);
+  },
+
+  // Login do administrador por email/senha
+  async loginAdmin(req, res) {
+    const { email, senha } = req.body || {};
+    try {
+      const usuario = await UserModel.getByEmail(email);
+      if (!usuario || usuario.tipo !== 'admin') return res.status(400).json({ message: 'Usuário não encontrado' });
+      const senhaValida = await bcrypt.compare(senha, usuario.senha);
+      if (!senhaValida) return res.status(400).json({ message: 'Senha incorreta' });
+      const token = jwt.sign(
+        { id: usuario.id },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN }
+      );
+      await audit({ req, recurso: 'auth', acao: 'LOGIN_ADMIN', usuarioId: usuario.id, entidadeId: null, antes: null, depois: { sucesso: true, email } });
+      res.json({ token, mustResetPassword: !!usuario.must_reset_password, tipo: usuario.tipo });
+    } catch (error) {
+      logger.error('usuario_login_admin_error', { err: { message: error.message } });
+      res.status(500).json({ message: 'Erro ao autenticar administrador' });
     }
   },
 
@@ -193,11 +313,8 @@ module.exports = {
 
   async bootstrapAdmin(req, res) {
     try {
-      // Permite bootstrap se não houver nenhum admin, independentemente de existirem outros usuários
-      const db = require('../config/db');
-      const [rows] = await db.query("SELECT COUNT(*) AS total FROM usuarios WHERE tipo = 'admin'");
-      const totalAdmins = rows[0]?.total || 0;
-      if (totalAdmins > 0) return res.status(409).json({ message: 'Já existe admin' });
+      // Ajuste: permitir criação de múltiplos admins
+      // Mantemos endpoint simples para ambientes de teste; ver observação de segurança.
       const { email, senha, nome } = req.body || {};
       if (!email || !senha) return res.status(422).json({ message: 'email e senha são obrigatórios' });
       const salt = await bcrypt.genSalt(10);

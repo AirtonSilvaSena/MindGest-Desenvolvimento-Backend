@@ -29,9 +29,17 @@ function write(stream, record) {
   try { stream.write(line); } catch {}
 }
 
+// Função utilitária para gerar timestamp local no fuso de São Paulo
+function localTimestamp() {
+  // Formata no padrão ISO-like, mas com o fuso horário local
+  return new Date()
+    .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }) // formato 2025-11-11 00:31:22
+    .replace(' ', 'T'); // vira 2025-11-11T00:31:22
+}
+
 function baseRecord(level, msg, extra) {
   return {
-    ts: new Date().toISOString(),
+    ts: localTimestamp(),
     level,
     msg,
     ...extra
@@ -62,11 +70,9 @@ const logger = {
     write(errStream, rec); console.error(rec);
   },
   audit(event) {
-    // event should already be a structured object with action, resource, userId, entityId, before/after
-    const rec = { ts: new Date().toISOString(), type: 'audit', ...event };
+    const rec = { ts: localTimestamp(), type: 'audit', ...event };
     write(auditStream, rec);
   }
 };
 
 module.exports = logger;
-

@@ -46,6 +46,8 @@
  *         token: { type: string }
  *         mustResetPassword: { type: boolean, example: true }
  *         tipo: { type: string, example: 'admin' }
+ *         licenseExpiresAt: { type: string, format: date-time }
+ *         daysRemaining: { type: integer, example: 42 }
  *
  *     Paciente:
  *       type: object
@@ -90,6 +92,26 @@
  *         ip: { type: string, example: '::1' }
  *         user_agent: { type: string, nullable: true }
  *         criado_em: { type: string, format: date-time }
+ *
+ *     Plano:
+ *       type: object
+ *       properties:
+ *         id: { type: integer }
+ *         descricao: { type: string }
+ *         dias_acesso: { type: integer }
+ *         ativo: { type: boolean }
+ *         criado_em: { type: string, format: date-time }
+ *         atualizado_em: { type: string, format: date-time }
+ *
+ *     Licenca:
+ *       type: object
+ *       properties:
+ *         id: { type: integer }
+ *         usuario_id: { type: integer }
+ *         plano_id: { type: integer }
+ *         emitido_em: { type: string, format: date-time }
+ *         expira_em: { type: string, format: date-time }
+ *         ativo: { type: boolean }
  */
 
 /**

@@ -4,6 +4,7 @@ const consultasController = require('../controllers/ConsultaController');
 const autenticar = require('../middlewares/autenticar');
 const enforcePasswordReset = require('../middlewares/enforcePasswordReset');
 const { createConsultaValidation, updateConsultaValidation, statusConsultaValidation, idParamValidation } = require('../middlewares/consultaValidation');
+const enforceLicense = require('../middlewares/enforceLicense');
 const handleValidation = require('../middlewares/handleValidation');
 
 /**
@@ -115,7 +116,7 @@ const handleValidation = require('../middlewares/handleValidation');
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.post('/', autenticar, enforcePasswordReset(), createConsultaValidation, handleValidation, consultasController.create);
+router.post('/', autenticar, enforcePasswordReset(), enforceLicense(), createConsultaValidation, handleValidation, consultasController.create);
 
 /**
  * @swagger
@@ -141,7 +142,7 @@ router.post('/', autenticar, enforcePasswordReset(), createConsultaValidation, h
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.get('/', autenticar, enforcePasswordReset(), consultasController.list);
+router.get('/', autenticar, enforcePasswordReset(), enforceLicense(), consultasController.list);
 
 /**
  * @swagger
@@ -177,7 +178,7 @@ router.get('/', autenticar, enforcePasswordReset(), consultasController.list);
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.get('/:id', autenticar, enforcePasswordReset(), idParamValidation, handleValidation, consultasController.getById);
+router.get('/:id', autenticar, enforcePasswordReset(), enforceLicense(), idParamValidation, handleValidation, consultasController.getById);
 
 /**
  * @swagger
@@ -224,7 +225,7 @@ router.get('/:id', autenticar, enforcePasswordReset(), idParamValidation, handle
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.put('/:id', autenticar, updateConsultaValidation, handleValidation, consultasController.update);
+router.put('/:id', autenticar, enforcePasswordReset(), enforceLicense(), updateConsultaValidation, handleValidation, consultasController.update);
 
 /**
  * @swagger
@@ -283,7 +284,7 @@ router.put('/:id', autenticar, updateConsultaValidation, handleValidation, consu
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.patch('/:id/status', autenticar, statusConsultaValidation, handleValidation, consultasController.updateStatus);
+router.patch('/:id/status', autenticar, enforcePasswordReset(), enforceLicense(), statusConsultaValidation, handleValidation, consultasController.updateStatus);
 
 /**
  * @swagger
@@ -320,6 +321,6 @@ router.patch('/:id/status', autenticar, statusConsultaValidation, handleValidati
  *             schema:
  *               $ref: '#/components/schemas/Erro'
  */
-router.delete('/:id', autenticar, idParamValidation, handleValidation, consultasController.delete);
+router.delete('/:id', autenticar, enforcePasswordReset(), enforceLicense(), idParamValidation, handleValidation, consultasController.delete);
 
 module.exports = router;

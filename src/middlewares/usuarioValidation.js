@@ -78,7 +78,12 @@ const createUserValidation = [
     return true;
   }),
   common.email,
-  common.telefone,
+  // telefone obrigatório no cadastro por admin
+  body('telefone')
+    .notEmpty().withMessage('telefone é obrigatório')
+    .isLength({ max: 20 }).withMessage('telefone deve ter no máximo 20 caracteres'),
+  // plano_id obrigatório no cadastro
+  body('plano_id').isInt({ min: 1 }).withMessage('plano_id é obrigatório'),
   cpfValidator,
   cnpjValidator
 ];
@@ -120,6 +125,32 @@ const updateUserValidation = [
 // Validação apenas do parâmetro 'id' para rotas que recebem um ID
 const idParamValidation = [
   param('id').isInt({ min: 1 }).withMessage('id inválido')
+];
+
+// Login profissional (PF/PJ) usando CPF/CNPJ
+const loginProfValidation = [
+  body('pessoa_tipo').isIn(['PF','PJ']).withMessage('pessoa_tipo deve ser PF ou PJ'),
+  body('cpf').custom((v, { req }) => {
+    if (req.body.pessoa_tipo === 'PF') {
+      const digits = String(v || '').replace(/\D+/g, '');
+      if (!digits || digits.length !== 11) throw new Error('cpf inválido');
+    }
+    return true;
+  }),
+  body('cnpj').custom((v, { req }) => {
+    if (req.body.pessoa_tipo === 'PJ') {
+      const digits = String(v || '').replace(/\D+/g, '');
+      if (!digits || digits.length !== 14) throw new Error('cnpj inválido');
+    }
+    return true;
+  }),
+  body('senha').notEmpty().isLength({ min: 8, max: 255 }).withMessage('senha inválida')
+];
+
+// Login admin com email/senha
+const loginAdminValidation = [
+  body('email').notEmpty().isEmail().withMessage('email inválido'),
+  body('senha').notEmpty().isLength({ min: 8, max: 255 }).withMessage('senha inválida')
 ];
 
 // Exporta todas as validações para serem usadas nas rotas

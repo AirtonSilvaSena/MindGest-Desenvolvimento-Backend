@@ -80,7 +80,7 @@ async function run() {
       }
       loginEmail = envEmail; loginSenha = envPass;
     }
-    r = await request('POST', '/api/v1/usuarios/login', { email: loginEmail, senha: loginSenha });
+    r = await request('POST', '/api/v1/usuarios/login-admin', { email: loginEmail, senha: loginSenha });
     if (r.status !== 200 || !r.body.token) throw new Error(`Falha login: ${r.status}`);
     let headers = { Authorization: `Bearer ${r.body.token}` };
 
@@ -90,7 +90,7 @@ async function run() {
       let r2 = await request('PUT', '/api/v1/usuarios/me/senha', { senha_atual: loginSenha, nova_senha: novaSenha }, headers);
       if (r2.status !== 200) throw new Error(`Falha ao trocar senha inicial: ${r2.status}`);
       // Reautentica
-      r = await request('POST', '/api/v1/usuarios/login', { email: loginEmail, senha: novaSenha });
+      r = await request('POST', '/api/v1/usuarios/login-admin', { email: loginEmail, senha: novaSenha });
       if (r.status !== 200 || !r.body.token) throw new Error(`Falha login pós troca: ${r.status}`);
       headers = { Authorization: `Bearer ${r.body.token}` };
     }

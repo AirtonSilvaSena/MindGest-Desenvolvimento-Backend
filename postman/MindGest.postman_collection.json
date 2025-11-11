@@ -45,13 +45,37 @@
           }
         },
         {
-          "name": "Login (gera token)",
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/usuarios/login-admin",
+            "body": {"mode":"raw","raw":"{\n  \"email\": \"admin@admin.com\",\n  \"senha\": \"Admin@12345\"\n}"},
+            "description": "Login de administrador. Retorna { token, mustResetPassword, tipo }. O test salva o token em {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login 200', function(){ pm.response.to.have.status(200); });",
+                  "var data = pm.response.json();",
+                  "pm.expect(data).to.have.property('token');",
+                  "pm.collectionVariables.set('token', data.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Profissional (PF/PJ)",
           "request": {
             "method": "POST",
             "header": [{"key":"Content-Type","value":"application/json"}],
             "url": "{{baseUrl}}/api/v1/usuarios/login",
-            "body": {"mode":"raw","raw":"{\n  \"email\": \"admin@admin.com\",\n  \"senha\": \"Admin@12345\"\n}"},
-            "description": "Realiza login e retorna { token, mustResetPassword, tipo }. O test salva o token em {{token}}."
+            "body": {"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PF\",\n  \"cpf\": \"11144477735\",\n  \"senha\": \"Senha@12345\"\n}"},
+            "description": "Login de profissional por CPF/CNPJ conforme pessoa_tipo."
           },
           "event": [
             {
@@ -246,6 +270,36 @@
         {
           "name": "Buscar auditoria por ID",
           "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/auditoria/1"}
+        }
+      ]
+    },
+    {
+      "name": "Monitor (Admin)",
+      "item": [
+        {"name":"DB Summary","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/admin/monitor/db/summary"}},
+        {"name":"DB Health","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/admin/monitor/db/health"}},
+        {"name":"Server Summary","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/admin/monitor/server/summary"}}
+      ]
+    },
+    {
+      "name": "Planos (Admin)",
+      "item": [
+        {"name":"Criar plano 60 dias","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/planos","body":{"mode":"raw","raw":"{\n  \"descricao\": \"Plano 60 dias\",\n  \"dias_acesso\": 60,\n  \"ativo\": true\n}"}}},
+        {"name":"Listar planos","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{baseUrl}}/api/v1/planos"}},
+        {"name":"Atribuir plano ao usuário","request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/planos/assign-user/{{usuarioId}}","body":{"mode":"raw","raw":"{\n  \"plano_id\": 1\n}"}}},
+        {"name":"Renovar licença do usuário","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/planos/renew-user/{{usuarioId}}","body":{"mode":"raw","raw":"{\n  \"add_days\": 30\n}"}}}
+      ]
+    },
+    {
+      "name": "Usuários (Admin) - com telefone",
+      "item": [
+        {
+          "name": "Criar usuário PF (telefone + plano)",
+          "request": {"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/usuarios","body":{"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PF\",\n  \"nome\": \"Usuário PF\",\n  \"cpf\": \"11144477735\",\n  \"email\": \"pf@example.com\",\n  \"telefone\": \"11999999999\",\n  \"plano_id\": 1\n}"}}
+        },
+        {
+          "name": "Criar usuário PJ (telefone + plano)",
+          "request": {"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/api/v1/usuarios","body":{"mode":"raw","raw":"{\n  \"pessoa_tipo\": \"PJ\",\n  \"empresa_nome\": \"Empresa Exemplo\",\n  \"cnpj\": \"11222333000181\",\n  \"email\": \"pj@example.com\",\n  \"telefone\": \"21988887777\",\n  \"plano_id\": 1\n}"}}
         }
       ]
     }

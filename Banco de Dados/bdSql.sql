@@ -136,3 +136,34 @@ ALTER TABLE `usuarios`
 ALTER TABLE `usuarios`
   ADD INDEX `idx_usuarios_tipo` (`tipo`),
   ADD INDEX `idx_usuarios_pessoa_tipo` (`pessoa_tipo`);
+
+-- --------------------------------------------------------
+-- Novas Tabelas: Planos e Licenças de Usuário
+-- --------------------------------------------------------
+
+-- Tabela de planos de licença
+CREATE TABLE IF NOT EXISTS `planos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `descricao` varchar(150) NOT NULL,
+  `dias_acesso` int(11) NOT NULL,
+  `ativo` tinyint(1) NOT NULL DEFAULT 1,
+  `criado_em` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `atualizado_em` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Tabela de licenças por usuário (histórico)
+CREATE TABLE IF NOT EXISTS `usuario_licencas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `usuario_id` int(11) NOT NULL,
+  `plano_id` int(11) NOT NULL,
+  `emitido_em` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expira_em` timestamp NULL DEFAULT NULL,
+  `ativo` tinyint(1) NOT NULL DEFAULT 1,
+  `criado_em` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ul_usuario_ativo` (`usuario_id`,`ativo`),
+  KEY `idx_ul_plano_ativo` (`plano_id`,`ativo`),
+  CONSTRAINT `fk_ul_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_ul_plano` FOREIGN KEY (`plano_id`) REFERENCES `planos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

@@ -19,12 +19,12 @@ const router = Router();
  * Rotas públicas
  */
 
-// Login de usuário
+// Login de profissional (PF/PJ) com CPF/CNPJ
 /**
  * @swagger
  * /api/v1/usuarios/login:
  *   post:
- *     summary: Login de usuário
+ *     summary: Login de profissional (PF/PJ) por CPF/CNPJ
  *     tags: [Usuários]
  *     requestBody:
  *       required: true
@@ -32,20 +32,19 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - email
- *               - senha
+ *             required: [ pessoa_tipo, senha ]
  *             properties:
- *               email:
- *                 type: string
- *               senha:
- *                 type: string
+ *               pessoa_tipo: { type: string, enum: [PF, PJ] }
+ *               cpf: { type: string, description: "Obrigatório quando pessoa_tipo = PF" }
+ *               cnpj: { type: string, description: "Obrigatório quando pessoa_tipo = PJ" }
+ *               senha: { type: string }
  *           examples:
- *             default:
- *               summary: Exemplo de login
- *               value:
- *                 email: user@example.com
- *                 senha: Senha@123
+ *             pf:
+ *               summary: Exemplo PF
+ *               value: { pessoa_tipo: PF, cpf: "12345678901", senha: "Senha@123" }
+ *             pj:
+ *               summary: Exemplo PJ
+ *               value: { pessoa_tipo: PJ, cnpj: "12345678000199", senha: "Senha@123" }
  *     responses:
  *       200:
  *         description: Login bem-sucedido, retorna token
@@ -59,10 +58,44 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Erro'
+ *       403:
+ *         description: Primeiro acesso requer troca de senha (retorna resetToken)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *                 mustResetPassword: { type: boolean }
+ *                 resetToken: { type: string }
+ */
+const { loginProfValidation, loginAdminValidation } = require('../middlewares/loginValidation');
+router.post('/login', loginProfValidation, handleValidation, UserController.login);
+
+// Login de administrador com email/senha
+/**
+ * @swagger
+ * /api/v1/usuarios/login-admin:
+ *   post:
+ *     summary: Login de administrador por email/senha
+ *     tags: [Usuários]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [ email, senha ]
+ *             properties:
+ *               email: { type: string }
+ *               senha: { type: string }
+ *     responses:
+ *       200:
+ *         description: Login bem-sucedido, retorna token
  *       400:
  *         description: Usuário não encontrado ou senha incorreta
  */
-router.post('/login', UserController.login);
+router.post('/login-admin', loginAdminValidation, handleValidation, UserController.loginAdmin);
 
 /**
  * @swagger
@@ -100,10 +133,6 @@ router.post('/login', UserController.login);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Erro'
- *       401:
- *         description: Token não fornecido
- *       403:
- *         description: Token inválido ou expirado
  */
 router.get('/validarToken', autenticar, UserController.validateToken);
 
@@ -127,6 +156,8 @@ router.put('/me/senha', autenticar, changePasswordValidation, handleValidation, 
  *               - nome
  *               - email
  *               - senha
+ *               - telefone
+ *               - plano_id
  *             properties:
  *               nome:
  *                 type: string
@@ -136,6 +167,8 @@ router.put('/me/senha', autenticar, changePasswordValidation, handleValidation, 
  *                 type: string
  *               telefone:
  *                 type: string
+ *               plano_id:
+ *                 type: integer
  *     responses:
  *       201:
  *         description: Usuário criado
@@ -159,6 +192,14 @@ router.post('/', autenticar, requireAdmin, enforcePasswordReset(), createUserVal
  *     tags: [Usuários]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tipo
+ *         schema:
+ *           type: string
+ *           enum: [admin, profissional]
+ *         required: false
+ *         description: Filtra por tipo de usuário
  *     responses:
  *       200:
  *         description: Lista de usuários
@@ -212,10 +253,42 @@ router.get('/', autenticar, enforcePasswordReset(), requireAdmin, UserController
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Erro'
- *       404:
- *         description: Usuário não encontrado
  */
 router.get('/:id', autenticar, enforcePasswordReset(), idParamValidation, handleValidation, UserController.show);
+
+// Perfil (self)
+/**
+ * @swagger
+ * /api/v1/usuarios/me:
+ *   get:
+ *     summary: Retorna o perfil do usuário autenticado
+ *     tags: [Usuários]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Perfil
+ *   put:
+ *     summary: Atualiza o próprio perfil
+ *     tags: [Usuários]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nome: { type: string }
+ *               email: { type: string }
+ *               senha: { type: string }
+ *               telefone: { type: string }
+ *     responses:
+ *       200: { description: Perfil atualizado }
+ */
+router.get('/me', autenticar, enforcePasswordReset(), UserController.me);
+router.put('/me', autenticar, enforcePasswordReset(), updateUserValidation, handleValidation, UserController.updateMe);
 
 // Atualizar usuário
 /**
@@ -279,10 +352,6 @@ router.get('/:id', autenticar, enforcePasswordReset(), idParamValidation, handle
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Erro'
- *       404:
- *         description: Usuário não encontrado
- *       409:
- *         description: Email já cadastrado
  */
 router.put('/:id', autenticar, enforcePasswordReset(), updateUserValidation, handleValidation, UserController.update);
 
@@ -325,7 +394,7 @@ module.exports = router;
  * @swagger
  * /api/v1/usuarios/bootstrap-admin:
  *   post:
- *     summary: Cria o primeiro usuário admin (somente quando não há usuários)
+ *     summary: Cria um usuário admin (uso em setup e testes)
  *     tags: [Usuários]
  *     requestBody:
  *       required: true
@@ -342,4 +411,4 @@ module.exports = router;
  *       201: { description: Admin criado }
  *       409: { description: Já existe usuário }
  */
-router.post('/bootstrap-admin', UserController.bootstrapAdmin);
+// rota já definida anteriormente
